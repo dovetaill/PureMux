@@ -114,6 +114,158 @@ redis:
 	}
 }
 
+func TestLoadReadsDatabaseDriver(t *testing.T) {
+	path := writeConfigFile(t, `
+app:
+  name: PureMux
+mysql:
+  host: 127.0.0.1
+  user: root
+  password: root
+  dbname: puremux
+redis:
+  addr: 127.0.0.1:6379
+database:
+  driver: postgres
+  mysql:
+    host: 127.0.0.1
+    user: root
+    password: root
+    dbname: puremux
+  postgres:
+    host: 127.0.0.1
+    user: pg
+    password: pg
+    dbname: puremux
+log:
+  level: info
+`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Database.Driver != "postgres" {
+		t.Fatalf("Database.Driver = %q, want %q", cfg.Database.Driver, "postgres")
+	}
+}
+
+func TestLoadReadsPostgresConfig(t *testing.T) {
+	path := writeConfigFile(t, `
+app:
+  name: PureMux
+mysql:
+  host: 127.0.0.1
+  user: root
+  password: root
+  dbname: puremux
+redis:
+  addr: 127.0.0.1:6379
+database:
+  driver: postgres
+  mysql:
+    host: 127.0.0.1
+    user: root
+    password: root
+    dbname: puremux
+  postgres:
+    host: 10.0.0.1
+    port: 5433
+    user: pg_user
+    password: pg_pwd
+    dbname: puremux_db
+    ssl_mode: disable
+    time_zone: Asia/Shanghai
+log:
+  level: info
+`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Database.Postgres.Host != "10.0.0.1" {
+		t.Fatalf("Database.Postgres.Host = %q, want %q", cfg.Database.Postgres.Host, "10.0.0.1")
+	}
+	if cfg.Database.Postgres.Port != 5433 {
+		t.Fatalf("Database.Postgres.Port = %d, want %d", cfg.Database.Postgres.Port, 5433)
+	}
+	if cfg.Database.Postgres.TimeZone != "Asia/Shanghai" {
+		t.Fatalf("Database.Postgres.TimeZone = %q, want %q", cfg.Database.Postgres.TimeZone, "Asia/Shanghai")
+	}
+}
+
+func TestLoadReadsQueueAndSchedulerConfig(t *testing.T) {
+	path := writeConfigFile(t, `
+app:
+  name: PureMux
+mysql:
+  host: 127.0.0.1
+  user: root
+  password: root
+  dbname: puremux
+redis:
+  addr: 127.0.0.1:6379
+queue:
+  asynq:
+    concurrency: 15
+    queue_name: default
+scheduler:
+  enabled: true
+  spec: "@every 1m"
+log:
+  level: info
+`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Queue.Asynq.Concurrency != 15 {
+		t.Fatalf("Queue.Asynq.Concurrency = %d, want %d", cfg.Queue.Asynq.Concurrency, 15)
+	}
+	if !cfg.Scheduler.Enabled {
+		t.Fatal("Scheduler.Enabled = false, want true")
+	}
+	if cfg.Scheduler.Spec != "@every 1m" {
+		t.Fatalf("Scheduler.Spec = %q, want %q", cfg.Scheduler.Spec, "@every 1m")
+	}
+}
+
+func TestLoadAppliesHTTPTimeoutDefaults(t *testing.T) {
+	path := writeConfigFile(t, `
+app:
+  name: PureMux
+mysql:
+  host: 127.0.0.1
+  user: root
+  password: root
+  dbname: puremux
+redis:
+  addr: 127.0.0.1:6379
+log:
+  level: info
+`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.HTTP.ReadTimeoutSeconds != 15 {
+		t.Fatalf("HTTP.ReadTimeoutSeconds = %d, want %d", cfg.HTTP.ReadTimeoutSeconds, 15)
+	}
+	if cfg.HTTP.WriteTimeoutSeconds != 15 {
+		t.Fatalf("HTTP.WriteTimeoutSeconds = %d, want %d", cfg.HTTP.WriteTimeoutSeconds, 15)
+	}
+	if cfg.HTTP.IdleTimeoutSeconds != 60 {
+		t.Fatalf("HTTP.IdleTimeoutSeconds = %d, want %d", cfg.HTTP.IdleTimeoutSeconds, 60)
+	}
+}
+
 func writeConfigFile(t *testing.T, content string) string {
 	t.Helper()
 
