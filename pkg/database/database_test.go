@@ -1,9 +1,12 @@
 package database
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/dovetaill/PureMux/pkg/config"
+	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 func TestBuildMySQLDSN(t *testing.T) {
@@ -64,5 +67,137 @@ func TestResourcesCloseIsSafe(t *testing.T) {
 	emptyResources := &Resources{}
 	if err := emptyResources.Close(); err != nil {
 		t.Fatalf("empty Close() error = %v", err)
+	}
+}
+
+func TestBootstrapUsesMySQLDialectorWhenDriverIsMySQL(t *testing.T) {
+	origOpenMySQL := openMySQLFn
+	origOpenPostgres := openPostgresFn
+	origOpenRedis := openRedisFn
+	t.Cleanup(func() {
+		openMySQLFn = origOpenMySQL
+		openPostgresFn = origOpenPostgres
+		openRedisFn = origOpenRedis
+	})
+
+	mysqlCalled := false
+	postgresCalled := false
+	openMySQLFn = func(cfg config.MySQLConfig) (*gorm.DB, error) {
+		mysqlCalled = true
+		return &gorm.DB{}, nil
+	}
+	openPostgresFn = func(cfg config.PostgresConfig) (*gorm.DB, error) {
+		postgresCalled = true
+		return &gorm.DB{}, nil
+	}
+	openRedisFn = func(cfg config.RedisConfig) (*redis.Client, error) {
+		return nil, nil
+	}
+
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{Driver: "mysql"},
+		MySQL: config.MySQLConfig{
+			Host:   "127.0.0.1",
+			User:   "root",
+			DBName: "puremux",
+		},
+		Redis: config.RedisConfig{Addr: "127.0.0.1:6379"},
+	}
+
+	if _, err := Bootstrap(cfg); err != nil {
+		t.Fatalf("Bootstrap() error = %v", err)
+	}
+
+	if !mysqlCalled {
+		t.Fatal("openMySQLFn was not called")
+	}
+	if postgresCalled {
+		t.Fatal("openPostgresFn was called, want not called")
+	}
+}
+
+func TestBootstrapUsesPostgresDialectorWhenDriverIsPostgres(t *testing.T) {
+	origOpenMySQL := openMySQLFn
+	origOpenPostgres := openPostgresFn
+	origOpenRedis := openRedisFn
+	t.Cleanup(func() {
+		openMySQLFn = origOpenMySQL
+		openPostgresFn = origOpenPostgres
+		openRedisFn = origOpenRedis
+	})
+
+	mysqlCalled := false
+	postgresCalled := false
+	openMySQLFn = func(cfg config.MySQLConfig) (*gorm.DB, error) {
+		mysqlCalled = true
+		return &gorm.DB{}, nil
+	}
+	openPostgresFn = func(cfg config.PostgresConfig) (*gorm.DB, error) {
+		postgresCalled = true
+		return &gorm.DB{}, nil
+	}
+	openRedisFn = func(cfg config.RedisConfig) (*redis.Client, error) {
+		return nil, nil
+	}
+
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{
+			Driver: "postgres",
+			Postgres: config.PostgresConfig{
+				Host:   "127.0.0.1",
+				User:   "postgres",
+				DBName: "puremux",
+			},
+		},
+		Redis: config.RedisConfig{Addr: "127.0.0.1:6379"},
+	}
+
+	if _, err := Bootstrap(cfg); err != nil {
+		t.Fatalf("Bootstrap() error = %v", err)
+	}
+
+	if !postgresCalled {
+		t.Fatal("openPostgresFn was not called")
+	}
+	if mysqlCalled {
+		t.Fatal("openMySQLFn was called, want not called")
+	}
+}
+
+func TestBuildPostgresDSN(t *testing.T) {
+	cfg := config.PostgresConfig{
+		Host:     "127.0.0.1",
+		Port:     5432,
+		User:     "postgres",
+		Password: "secret",
+		DBName:   "puremux",
+		SSLMode:  "disable",
+		TimeZone: "Asia/Shanghai",
+	}
+
+	got := buildPostgresDSN(cfg)
+	want := "host=127.0.0.1 port=5432 user=postgres password=secret dbname=puremux sslmode=disable TimeZone=Asia/Shanghai"
+	if got != want {
+		t.Fatalf("buildPostgresDSN() = %q, want %q", got, want)
+	}
+}
+
+func TestBootstrapReturnsErrorForUnsupportedDriver(t *testing.T) {
+	origOpenRedis := openRedisFn
+	t.Cleanup(func() {
+		openRedisFn = origOpenRedis
+	})
+	openRedisFn = func(cfg config.RedisConfig) (*redis.Client, error) {
+		return nil, errors.New("redis should not be called for unsupported driver")
+	}
+
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{Driver: "sqlite"},
+		Redis:    config.RedisConfig{Addr: "127.0.0.1:6379"},
+	}
+
+	_, err := Bootstrap(cfg)
+	if err == nil {
+		t.Fatal("Bootstrap() error = nil, want non-nil")
 	}
 }

@@ -9,6 +9,12 @@ import (
 	"gorm.io/gorm"
 )
 
+var (
+	openMySQLFn    = openMySQL
+	openPostgresFn = openPostgres
+	openRedisFn    = openRedis
+)
+
 // Resources 聚合阶段一初始化出来的基础设施客户端。
 type Resources struct {
 	MySQL *gorm.DB
@@ -23,13 +29,13 @@ func Bootstrap(cfg *config.Config) (*Resources, error) {
 
 	resources := &Resources{}
 
-	mysqlDB, err := openMySQL(cfg.MySQL)
+	mysqlDB, err := openPrimaryDatabase(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("bootstrap mysql: %w", err)
+		return nil, fmt.Errorf("bootstrap database: %w", err)
 	}
 	resources.MySQL = mysqlDB
 
-	redisClient, err := openRedis(cfg.Redis)
+	redisClient, err := openRedisFn(cfg.Redis)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("bootstrap redis: %w", err), resources.Close())
 	}
