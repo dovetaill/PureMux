@@ -1,6 +1,8 @@
 package register
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -15,7 +17,9 @@ import (
 	articlemodule "github.com/dovetaill/PureMux/internal/modules/article"
 	"github.com/dovetaill/PureMux/internal/modules/auth"
 	categorymodule "github.com/dovetaill/PureMux/internal/modules/category"
+	membermodule "github.com/dovetaill/PureMux/internal/modules/member"
 	usermodule "github.com/dovetaill/PureMux/internal/modules/user"
+	"github.com/dovetaill/PureMux/pkg/config"
 )
 
 // NewRouter 构建基于 Huma 的 HTTP 路由。
@@ -34,14 +38,19 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 
 	api := humago.New(apiMux, cfg)
 	publicRoutes := huma.NewGroup(api)
+	memberAuthRoutes := huma.NewGroup(api)
+	memberSelfRoutes := huma.NewGroup(api)
 	adminRoutes := huma.NewGroup(api)
+	memberSelfRoutes.UseMiddleware(requireMemberMiddleware(api))
 	adminRoutes.UseMiddleware(requireAdminMiddleware(api))
 
 	handlers.RegisterHealth(publicRoutes)
 	handlers.RegisterReady(publicRoutes, rt)
 
 	handler := http.Handler(apiMux)
+	authenticators := make([]tokenAuthenticator, 0, 2)
 	if authService := newAuthService(rt); authService != nil {
+		authenticators = append(authenticators, authService)
 		auth.RegisterRoutes(publicRoutes, authService)
 		if userService := newUserService(rt); userService != nil {
 			usermodule.RegisterRoutes(adminRoutes, userService)
@@ -54,7 +63,14 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 			articlemodule.RegisterPublicRoutes(publicRoutes, articleService)
 			articlemodule.RegisterAdminRoutes(adminRoutes, articleService)
 		}
-		handler = middleware.Authenticate(authService)(apiMux)
+	}
+	if memberService := newMemberService(rt); memberService != nil {
+		authenticators = append(authenticators, memberService)
+		membermodule.RegisterPublicRoutes(memberAuthRoutes, memberService)
+		membermodule.RegisterSelfRoutes(memberSelfRoutes, memberService)
+	}
+	if len(authenticators) > 0 {
+		handler = middleware.Authenticate(compositeAuthenticator{authenticators: authenticators})(apiMux)
 	}
 
 	timeout := 15 * time.Second
@@ -115,6 +131,14 @@ func newArticleService(rt *bootstrap.Runtime) *articlemodule.Service {
 	return articlemodule.NewService(repo)
 }
 
+func newMemberService(rt *bootstrap.Runtime) *membermodule.Service {
+	if rt == nil || rt.Config == nil || rt.Resources == nil || rt.Resources.MySQL == nil {
+		return nil
+	}
+	repo := membermodule.NewRepository(rt.Resources.MySQL)
+	return membermodule.NewService(repo, identity.NewTokenManager(memberJWTConfig(rt.Config.Auth.JWT)))
+}
+
 func nilLogger(rt *bootstrap.Runtime) *slog.Logger {
 	if rt == nil {
 		return nil
@@ -144,4 +168,57 @@ func requireAdminMiddleware(api huma.API) func(huma.Context, func(huma.Context))
 		}
 		next(ctx)
 	}
+}
+
+func requireMemberMiddleware(api huma.API) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		principal, ok := identity.PrincipalFromContext(ctx.Context())
+		if !ok {
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		if principal.Kind != identity.PrincipalMember {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+			return
+		}
+		next(ctx)
+	}
+}
+
+type tokenAuthenticator interface {
+	Authenticate(ctx context.Context, token string) (*auth.CurrentUser, error)
+}
+
+type compositeAuthenticator struct {
+	authenticators []tokenAuthenticator
+}
+
+func (c compositeAuthenticator) Authenticate(ctx context.Context, token string) (*auth.CurrentUser, error) {
+	for _, authenticator := range c.authenticators {
+		if authenticator == nil {
+			continue
+		}
+		currentUser, err := authenticator.Authenticate(ctx, token)
+		if err == nil {
+			return currentUser, nil
+		}
+		if errors.Is(err, auth.ErrUnauthorized) {
+			continue
+		}
+		return nil, err
+	}
+	return nil, auth.ErrUnauthorized
+}
+
+func memberJWTConfig(base config.JWTConfig) config.JWTConfig {
+	cfg := base
+	cfg.Secret = strings.TrimSpace(cfg.Secret) + ":member"
+	cfg.Issuer = strings.TrimSpace(cfg.Issuer) + "/member"
+	if strings.TrimSpace(base.Secret) == "" {
+		cfg.Secret = "PureMux:member"
+	}
+	if strings.TrimSpace(base.Issuer) == "" {
+		cfg.Issuer = "PureMux/member"
+	}
+	return cfg
 }

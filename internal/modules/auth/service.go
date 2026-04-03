@@ -91,6 +91,12 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*CurrentUser,
 	}
 
 	currentUser := user.ToCurrentUser()
+	if claims.Role != "" && claims.Role != currentUser.Role {
+		return nil, ErrUnauthorized
+	}
+	if claims.Username != "" && claims.Username != currentUser.Username {
+		return nil, ErrUnauthorized
+	}
 	return &currentUser, nil
 }
 

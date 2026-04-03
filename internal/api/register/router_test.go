@@ -11,7 +11,6 @@ import (
 	"github.com/dovetaill/PureMux/internal/api/register"
 	"github.com/dovetaill/PureMux/internal/app/bootstrap"
 	"github.com/dovetaill/PureMux/internal/identity"
-	"github.com/dovetaill/PureMux/internal/middleware"
 	authmodule "github.com/dovetaill/PureMux/internal/modules/auth"
 	"github.com/dovetaill/PureMux/pkg/config"
 	"github.com/dovetaill/PureMux/pkg/database"
@@ -40,6 +39,9 @@ func TestRouterRegistersAuthAndBusinessRoutes(t *testing.T) {
 
 	assertOperation(t, doc.Paths, "/api/v1/auth/login", http.MethodPost)
 	assertOperation(t, doc.Paths, "/api/v1/auth/me", http.MethodGet)
+	assertOperation(t, doc.Paths, "/api/v1/member/auth/register", http.MethodPost)
+	assertOperation(t, doc.Paths, "/api/v1/member/auth/login", http.MethodPost)
+	assertOperation(t, doc.Paths, "/api/v1/me", http.MethodGet)
 	assertOperation(t, doc.Paths, "/api/v1/admin/users", http.MethodPost)
 	assertOperation(t, doc.Paths, "/api/v1/admin/users", http.MethodGet)
 	assertOperation(t, doc.Paths, "/api/v1/admin/users/{id}", http.MethodGet)
@@ -75,7 +77,7 @@ func TestPublicArticleRoutesAreAccessibleWithoutAuth(t *testing.T) {
 }
 
 func TestMemberRoutesRequireMemberAuth(t *testing.T) {
-	handler := newRouterSurfaceTestHandler()
+	handler := register.NewRouter(newRouterTestRuntime())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
 	rec := httptest.NewRecorder()
@@ -123,16 +125,6 @@ func newRouterTestRuntime() *bootstrap.Runtime {
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Resources: &database.Resources{MySQL: &gorm.DB{}},
 	}
-}
-
-func newRouterSurfaceTestHandler() http.Handler {
-	base := register.NewRouter(newRouterTestRuntime())
-	root := http.NewServeMux()
-	root.Handle("/api/v1/me", middleware.RequireMember()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})))
-	root.Handle("/", base)
-	return root
 }
 
 func assertOperation(t *testing.T, paths map[string]map[string]any, path string, method string) {
