@@ -10,6 +10,7 @@ import (
 
 	"github.com/dovetaill/PureMux/internal/api/register"
 	"github.com/dovetaill/PureMux/internal/app/bootstrap"
+	authmodule "github.com/dovetaill/PureMux/internal/modules/auth"
 	"github.com/dovetaill/PureMux/pkg/config"
 	"github.com/dovetaill/PureMux/pkg/database"
 	"gorm.io/gorm"
@@ -56,6 +57,49 @@ func TestRouterRegistersAuthAndBusinessRoutes(t *testing.T) {
 	assertOperation(t, doc.Paths, "/api/v1/articles/{id}/unpublish", http.MethodPost)
 }
 
+func TestPublicArticleRoutesAreAccessibleWithoutAuth(t *testing.T) {
+	handler := register.NewRouter(newRouterTestRuntime())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/articles?page=1&page_size=20", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusUnauthorized {
+		t.Fatalf("status = %d, want non-%d for unauthenticated public article route", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestMemberRoutesRequireMemberAuth(t *testing.T) {
+	handler := register.NewRouter(newRouterTestRuntime())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d for unauthenticated member route", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestAdminRoutesRejectNonAdminPrincipal(t *testing.T) {
+	handler := register.NewRouter(newRouterTestRuntime())
+	token := mustSignRouterToken(t, authmodule.CurrentUser{
+		ID:       7,
+		Username: "writer",
+		Role:     authmodule.RoleUser,
+		Status:   authmodule.StatusActive,
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/articles", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d for non-admin principal on admin route", rec.Code, http.StatusForbidden)
+	}
+}
+
 func newRouterTestRuntime() *bootstrap.Runtime {
 	return &bootstrap.Runtime{
 		Config: &config.Config{
@@ -73,6 +117,21 @@ func newRouterTestRuntime() *bootstrap.Runtime {
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Resources: &database.Resources{MySQL: &gorm.DB{}},
 	}
+}
+
+func mustSignRouterToken(t *testing.T, user authmodule.CurrentUser) string {
+	t.Helper()
+
+	tokens := authmodule.NewTokenManager(config.JWTConfig{
+		Secret:     "test-secret",
+		Issuer:     "puremux-test",
+		TTLMinutes: 120,
+	})
+	token, _, err := tokens.Sign(user)
+	if err != nil {
+		t.Fatalf("Sign() error = %v", err)
+	}
+	return token
 }
 
 func assertOperation(t *testing.T, paths map[string]map[string]any, path string, method string) {
