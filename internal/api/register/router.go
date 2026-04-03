@@ -12,6 +12,7 @@ import (
 	"github.com/dovetaill/PureMux/internal/app/bootstrap"
 	"github.com/dovetaill/PureMux/internal/middleware"
 	"github.com/dovetaill/PureMux/internal/modules/auth"
+	usermodule "github.com/dovetaill/PureMux/internal/modules/user"
 )
 
 // NewRouter 构建基于 Huma 的 HTTP 路由。
@@ -35,6 +36,9 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 	handler := http.Handler(apiMux)
 	if authService := newAuthService(rt); authService != nil {
 		auth.RegisterRoutes(api, authService)
+		if userService := newUserService(rt); userService != nil {
+			usermodule.RegisterRoutes(api, userService)
+		}
 
 		rootMux := http.NewServeMux()
 		rootMux.Handle("/api/v1/auth/me", middleware.RequireAuthenticated()(apiMux))
@@ -75,6 +79,14 @@ func newAuthService(rt *bootstrap.Runtime) *auth.Service {
 	repo := auth.NewRepository(rt.Resources.MySQL)
 	tokens := auth.NewTokenManager(rt.Config.Auth.JWT)
 	return auth.NewService(repo, tokens)
+}
+
+func newUserService(rt *bootstrap.Runtime) *usermodule.Service {
+	if rt == nil || rt.Resources == nil || rt.Resources.MySQL == nil {
+		return nil
+	}
+	repo := usermodule.NewRepository(rt.Resources.MySQL)
+	return usermodule.NewService(repo, auth.HashPassword)
 }
 
 func nilLogger(rt *bootstrap.Runtime) *slog.Logger {
