@@ -2,6 +2,8 @@
 
 PureMux 现在已经落地了一套可运行的多 surface API 架构：在保留 `server` / `worker` / `scheduler` / `migrate` 脚手架能力的同时，把业务 API 明确拆成 `public`、`member auth`、`member self`、`admin` 四个 surface。
 
+> 说明：当前这套完整多 surface 示例会保留在 `showcase/multisurface` 分支；`main` 会逐步收敛为 starter 主线。
+
 当前架构切片已经具备：
 
 - 后台管理员登录与当前身份读取
