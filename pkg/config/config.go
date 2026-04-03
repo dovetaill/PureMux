@@ -7,6 +7,7 @@ type Config struct {
 	MySQL     MySQLConfig     `yaml:"mysql"`
 	Redis     RedisConfig     `yaml:"redis"`
 	Database  DatabaseConfig  `yaml:"database"`
+	Auth      AuthConfig      `yaml:"auth"`
 	Queue     QueueConfig     `yaml:"queue"`
 	Scheduler SchedulerConfig `yaml:"scheduler"`
 	Docs      DocsConfig      `yaml:"docs"`
@@ -86,6 +87,26 @@ type PostgresConfig struct {
 	MaxOpenConns           int    `yaml:"max_open_conns" env:"POSTGRES_MAX_OPEN_CONNS" env-default:"20"`
 	MaxIdleConns           int    `yaml:"max_idle_conns" env:"POSTGRES_MAX_IDLE_CONNS" env-default:"10"`
 	ConnMaxLifetimeMinutes int    `yaml:"conn_max_lifetime_minutes" env:"POSTGRES_CONN_MAX_LIFETIME_MINUTES" env-default:"60"`
+}
+
+// AuthConfig 定义认证与默认管理员初始化配置。
+type AuthConfig struct {
+	JWT       JWTConfig       `yaml:"jwt"`
+	SeedAdmin SeedAdminConfig `yaml:"seed_admin"`
+}
+
+// JWTConfig 定义 JWT 生成与校验参数。
+type JWTConfig struct {
+	Secret     string `yaml:"secret" env:"AUTH_JWT_SECRET" env-default:"change-me-in-production"`
+	Issuer     string `yaml:"issuer" env:"AUTH_JWT_ISSUER" env-default:"PureMux"`
+	TTLMinutes int    `yaml:"ttl_minutes" env:"AUTH_JWT_TTL_MINUTES" env-default:"120"`
+}
+
+// SeedAdminConfig 定义默认管理员初始化参数。
+type SeedAdminConfig struct {
+	Enabled  bool   `yaml:"enabled" env:"AUTH_SEED_ADMIN_ENABLED" env-default:"true"`
+	Username string `yaml:"username" env:"AUTH_SEED_ADMIN_USERNAME" env-default:"admin"`
+	Password string `yaml:"password" env:"AUTH_SEED_ADMIN_PASSWORD" env-default:"admin123456"`
 }
 
 // QueueConfig 定义后台队列运行参数。

@@ -55,6 +55,16 @@ database:
     max_idle_conns: 10
     conn_max_lifetime_minutes: 60
 
+auth:
+  jwt:
+    secret: change-me-in-production
+    issuer: PureMux
+    ttl_minutes: 120
+  seed_admin:
+    enabled: true
+    username: admin
+    password: admin123456
+
 queue:
   asynq:
     concurrency: 10

@@ -235,6 +235,78 @@ log:
 	}
 }
 
+func TestLoadReadsJWTConfig(t *testing.T) {
+	path := writeConfigFile(t, `
+app:
+  name: PureMux
+mysql:
+  host: 127.0.0.1
+  user: root
+  password: root
+  dbname: puremux
+redis:
+  addr: 127.0.0.1:6379
+auth:
+  jwt:
+    secret: puremux-secret
+    issuer: puremux-admin
+    ttl_minutes: 180
+log:
+  level: info
+`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Auth.JWT.Secret != "puremux-secret" {
+		t.Fatalf("Auth.JWT.Secret = %q, want %q", cfg.Auth.JWT.Secret, "puremux-secret")
+	}
+	if cfg.Auth.JWT.Issuer != "puremux-admin" {
+		t.Fatalf("Auth.JWT.Issuer = %q, want %q", cfg.Auth.JWT.Issuer, "puremux-admin")
+	}
+	if cfg.Auth.JWT.TTLMinutes != 180 {
+		t.Fatalf("Auth.JWT.TTLMinutes = %d, want %d", cfg.Auth.JWT.TTLMinutes, 180)
+	}
+}
+
+func TestLoadReadsSeedAdminConfig(t *testing.T) {
+	path := writeConfigFile(t, `
+app:
+  name: PureMux
+mysql:
+  host: 127.0.0.1
+  user: root
+  password: root
+  dbname: puremux
+redis:
+  addr: 127.0.0.1:6379
+auth:
+  seed_admin:
+    enabled: true
+    username: admin
+    password: admin123456
+log:
+  level: info
+`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if !cfg.Auth.SeedAdmin.Enabled {
+		t.Fatal("Auth.SeedAdmin.Enabled = false, want true")
+	}
+	if cfg.Auth.SeedAdmin.Username != "admin" {
+		t.Fatalf("Auth.SeedAdmin.Username = %q, want %q", cfg.Auth.SeedAdmin.Username, "admin")
+	}
+	if cfg.Auth.SeedAdmin.Password != "admin123456" {
+		t.Fatalf("Auth.SeedAdmin.Password = %q, want %q", cfg.Auth.SeedAdmin.Password, "admin123456")
+	}
+}
+
 func TestLoadAppliesHTTPTimeoutDefaults(t *testing.T) {
 	path := writeConfigFile(t, `
 app:
