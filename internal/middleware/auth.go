@@ -8,11 +8,10 @@ import (
 
 	"github.com/dovetaill/PureMux/internal/api/response"
 	"github.com/dovetaill/PureMux/internal/identity"
-	"github.com/dovetaill/PureMux/internal/modules/auth"
 )
 
 type authenticator interface {
-	Authenticate(ctx context.Context, token string) (*auth.CurrentUser, error)
+	Authenticate(ctx context.Context, token string) (*identity.Actor, error)
 }
 
 func Authenticate(authenticator authenticator) Middleware {
@@ -30,15 +29,15 @@ func Authenticate(authenticator authenticator) Middleware {
 				return
 			}
 
-			currentUser, err := authenticator.Authenticate(r.Context(), token)
+			actor, err := authenticator.Authenticate(r.Context(), token)
 			if err != nil {
-				status, message := auth.StatusFromError(err)
+				status, message := identity.StatusFromError(err)
 				writeAuthError(w, status, message)
 				return
 			}
 
-			ctx := auth.ContextWithCurrentUser(r.Context(), *currentUser)
-			ctx = identity.ContextWithPrincipal(ctx, identity.PrincipalFromCurrentUser(*currentUser))
+			ctx := identity.ContextWithActor(r.Context(), *actor)
+			ctx = identity.ContextWithPrincipal(ctx, identity.PrincipalFromActor(*actor))
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

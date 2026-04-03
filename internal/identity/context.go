@@ -9,6 +9,14 @@ func ContextWithPrincipal(ctx context.Context, principal Principal) context.Cont
 }
 
 func PrincipalFromContext(ctx context.Context) (Principal, bool) {
-	principal, ok := ctx.Value(principalContextKey{}).(Principal)
-	return principal, ok
+	if principal, ok := ctx.Value(principalContextKey{}).(Principal); ok {
+		return principal, true
+	}
+
+	actor, ok := ActorFromContext(ctx)
+	if !ok {
+		return Principal{}, false
+	}
+
+	return PrincipalFromActor(actor), true
 }

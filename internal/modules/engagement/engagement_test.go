@@ -13,8 +13,8 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/dovetaill/PureMux/internal/api/response"
+	"github.com/dovetaill/PureMux/internal/identity"
 	"github.com/dovetaill/PureMux/internal/middleware"
-	authmodule "github.com/dovetaill/PureMux/internal/modules/auth"
 	engagementmodule "github.com/dovetaill/PureMux/internal/modules/engagement"
 )
 
@@ -247,7 +247,7 @@ func newEngagementHandler(t *testing.T, memberID uint, likes []*engagementmodule
 	service := engagementmodule.NewService(newEngagementRepoStub(likes, favorites))
 	authenticator := &memberAuthenticatorStub{
 		token: "member-" + strconv.FormatUint(uint64(memberID), 10),
-		user: authmodule.CurrentUser{
+		actor: identity.Actor{
 			ID:       memberID,
 			Username: "member",
 			Role:     "member",
@@ -264,15 +264,15 @@ func newEngagementHandler(t *testing.T, memberID uint, likes []*engagementmodule
 
 type memberAuthenticatorStub struct {
 	token string
-	user  authmodule.CurrentUser
+	actor identity.Actor
 }
 
-func (s *memberAuthenticatorStub) Authenticate(ctx context.Context, token string) (*authmodule.CurrentUser, error) {
+func (s *memberAuthenticatorStub) Authenticate(ctx context.Context, token string) (*identity.Actor, error) {
 	if token != s.token {
-		return nil, authmodule.ErrUnauthorized
+		return nil, identity.ErrUnauthorized
 	}
-	user := s.user
-	return &user, nil
+	actor := s.actor
+	return &actor, nil
 }
 
 func engagementKey(memberID, articleID uint) string {

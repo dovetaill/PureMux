@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dovetaill/PureMux/internal/app/bootstrap"
+	"github.com/dovetaill/PureMux/internal/identity"
 	"github.com/dovetaill/PureMux/pkg/database"
 )
 
@@ -49,6 +50,10 @@ func (u *User) ToCurrentUser() CurrentUser {
 	}
 }
 
+func (u CurrentUser) ToActor() identity.Actor {
+	return identity.NewActor(u.ID, u.Username, u.Role, u.Status)
+}
+
 type currentUserContextKey struct{}
 
 func ContextWithCurrentUser(ctx context.Context, user CurrentUser) context.Context {
@@ -56,8 +61,21 @@ func ContextWithCurrentUser(ctx context.Context, user CurrentUser) context.Conte
 }
 
 func CurrentUserFromContext(ctx context.Context) (CurrentUser, bool) {
-	user, ok := ctx.Value(currentUserContextKey{}).(CurrentUser)
-	return user, ok
+	if user, ok := ctx.Value(currentUserContextKey{}).(CurrentUser); ok {
+		return user, true
+	}
+
+	actor, ok := identity.ActorFromContext(ctx)
+	if !ok {
+		return CurrentUser{}, false
+	}
+
+	return CurrentUser{
+		ID:       actor.ID,
+		Username: actor.Username,
+		Role:     actor.Role,
+		Status:   actor.Status,
+	}, true
 }
 
 func init() {

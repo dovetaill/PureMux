@@ -1,7 +1,5 @@
 package identity
 
-import authmodule "github.com/dovetaill/PureMux/internal/modules/auth"
-
 type PrincipalKind string
 
 const (
@@ -17,17 +15,12 @@ type Principal struct {
 	Status   string        `json:"status"`
 }
 
-func PrincipalFromCurrentUser(user authmodule.CurrentUser) Principal {
-	kind := PrincipalMember
-	if user.Role == authmodule.RoleAdmin {
-		kind = PrincipalAdmin
-	}
-
+func PrincipalFromActor(actor Actor) Principal {
 	return Principal{
-		Kind:     kind,
-		UserID:   user.ID,
-		Username: user.Username,
-		Role:     user.Role,
-		Status:   user.Status,
+		Kind:     PrincipalKind(actor.Role),
+		UserID:   actor.ID,
+		Username: actor.Username,
+		Role:     actor.Role,
+		Status:   actor.Status,
 	}
 }

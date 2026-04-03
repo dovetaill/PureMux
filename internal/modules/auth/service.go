@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dovetaill/PureMux/internal/identity"
 )
 
 var (
@@ -64,40 +66,41 @@ func (s *Service) Login(ctx context.Context, username, password string) (*LoginR
 	return &LoginResult{Token: token, ExpiresAt: expiresAt, User: currentUser}, nil
 }
 
-func (s *Service) Authenticate(ctx context.Context, token string) (*CurrentUser, error) {
+func (s *Service) Authenticate(ctx context.Context, token string) (*identity.Actor, error) {
 	if s == nil || s.repo == nil || s.tokens == nil {
-		return nil, ErrUnauthorized
+		return nil, identity.ErrUnauthorized
 	}
 
 	claims, err := s.tokens.Parse(token)
 	if err != nil {
-		return nil, ErrUnauthorized
+		return nil, identity.ErrUnauthorized
 	}
 
 	id, err := strconv.ParseUint(claims.Subject, 10, 64)
 	if err != nil {
-		return nil, ErrUnauthorized
+		return nil, identity.ErrUnauthorized
 	}
 
 	user, err := s.repo.FindByID(ctx, uint(id))
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
-			return nil, ErrUnauthorized
+			return nil, identity.ErrUnauthorized
 		}
 		return nil, err
 	}
 	if user.Status == StatusDisabled {
-		return nil, ErrUserDisabled
+		return nil, identity.ErrActorDisabled
 	}
 
 	currentUser := user.ToCurrentUser()
 	if claims.Role != "" && claims.Role != currentUser.Role {
-		return nil, ErrUnauthorized
+		return nil, identity.ErrUnauthorized
 	}
 	if claims.Username != "" && claims.Username != currentUser.Username {
-		return nil, ErrUnauthorized
+		return nil, identity.ErrUnauthorized
 	}
-	return &currentUser, nil
+	actor := currentUser.ToActor()
+	return &actor, nil
 }
 
 func StatusFromError(err error) (int, string) {

@@ -198,28 +198,28 @@ func requireMemberMiddleware(api huma.API) func(huma.Context, func(huma.Context)
 }
 
 type tokenAuthenticator interface {
-	Authenticate(ctx context.Context, token string) (*auth.CurrentUser, error)
+	Authenticate(ctx context.Context, token string) (*identity.Actor, error)
 }
 
 type compositeAuthenticator struct {
 	authenticators []tokenAuthenticator
 }
 
-func (c compositeAuthenticator) Authenticate(ctx context.Context, token string) (*auth.CurrentUser, error) {
+func (c compositeAuthenticator) Authenticate(ctx context.Context, token string) (*identity.Actor, error) {
 	for _, authenticator := range c.authenticators {
 		if authenticator == nil {
 			continue
 		}
-		currentUser, err := authenticator.Authenticate(ctx, token)
+		actor, err := authenticator.Authenticate(ctx, token)
 		if err == nil {
-			return currentUser, nil
+			return actor, nil
 		}
-		if errors.Is(err, auth.ErrUnauthorized) {
+		if errors.Is(err, identity.ErrUnauthorized) {
 			continue
 		}
 		return nil, err
 	}
-	return nil, auth.ErrUnauthorized
+	return nil, identity.ErrUnauthorized
 }
 
 func memberJWTConfig(base config.JWTConfig) config.JWTConfig {

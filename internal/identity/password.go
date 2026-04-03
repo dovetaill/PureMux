@@ -1,11 +1,20 @@
 package identity
 
-import authmodule "github.com/dovetaill/PureMux/internal/modules/auth"
+import (
+	"strings"
+
+	"golang.org/x/crypto/bcrypt"
+)
 
 func HashPassword(password string) (string, error) {
-	return authmodule.HashPassword(password)
+	password = strings.TrimSpace(password)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
 }
 
 func VerifyPassword(hash, password string) error {
-	return authmodule.VerifyPassword(hash, password)
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 }

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/dovetaill/PureMux/internal/app/bootstrap"
+	"github.com/dovetaill/PureMux/internal/identity"
 	authmodule "github.com/dovetaill/PureMux/internal/modules/auth"
 )
 
@@ -44,6 +45,11 @@ func (m *Member) ToCurrentUser() authmodule.CurrentUser {
 		Role:     RoleMember,
 		Status:   m.Status,
 	}
+}
+
+func (m *Member) ToActor() identity.Actor {
+	currentUser := m.ToCurrentUser()
+	return currentUser.ToActor()
 }
 
 func (m *Member) ToProfile() Profile {

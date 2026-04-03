@@ -104,7 +104,7 @@ func TestAdminRoutesRejectNonAdminPrincipal(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/users", nil)
 	req = req.WithContext(authmodule.ContextWithCurrentUser(req.Context(), currentUser))
-	req = req.WithContext(identity.ContextWithPrincipal(req.Context(), identity.PrincipalFromCurrentUser(currentUser)))
+	req = req.WithContext(identity.ContextWithPrincipal(req.Context(), identity.PrincipalFromActor(currentUser.ToActor())))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

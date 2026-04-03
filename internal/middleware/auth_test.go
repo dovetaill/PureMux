@@ -7,41 +7,47 @@ import (
 	"testing"
 
 	"github.com/dovetaill/PureMux/internal/identity"
-	authmodule "github.com/dovetaill/PureMux/internal/modules/auth"
 )
 
 type stubAuthenticator struct {
-	user *authmodule.CurrentUser
-	err  error
+	actor *identity.Actor
+	err   error
 }
 
-func (s stubAuthenticator) Authenticate(ctx context.Context, token string) (*authmodule.CurrentUser, error) {
+func (s stubAuthenticator) Authenticate(ctx context.Context, token string) (*identity.Actor, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	return s.user, nil
+	return s.actor, nil
 }
 
-func TestAuthenticateStoresAdminPrincipal(t *testing.T) {
+func TestAuthenticateStoresGenericActor(t *testing.T) {
 	handler := Authenticate(stubAuthenticator{
-		user: &authmodule.CurrentUser{
+		actor: &identity.Actor{
 			ID:       1,
-			Username: "admin",
-			Role:     authmodule.RoleAdmin,
-			Status:   authmodule.StatusActive,
+			Username: "editor",
+			Role:     "editor",
+			Status:   "active",
 		},
 	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := identity.ActorFromContext(r.Context())
+		if !ok {
+			t.Fatal("actor missing from context")
+		}
+		if actor.Role != "editor" {
+			t.Fatalf("actor role = %q, want %q", actor.Role, "editor")
+		}
 		principal, ok := identity.PrincipalFromContext(r.Context())
 		if !ok {
 			t.Fatal("principal missing from context")
 		}
-		if principal.Kind != identity.PrincipalAdmin {
-			t.Fatalf("principal kind = %q, want %q", principal.Kind, identity.PrincipalAdmin)
+		if principal.Kind != identity.PrincipalKind("editor") {
+			t.Fatalf("principal kind = %q, want %q", principal.Kind, identity.PrincipalKind("editor"))
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req := httptest.NewRequest(http.MethodGet, "/posts", nil)
 	req.Header.Set("Authorization", "Bearer test-token")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -51,26 +57,19 @@ func TestAuthenticateStoresAdminPrincipal(t *testing.T) {
 	}
 }
 
-func TestAuthenticateStoresMemberPrincipal(t *testing.T) {
+func TestRequireRoleAllowsMatchingActor(t *testing.T) {
 	handler := Authenticate(stubAuthenticator{
-		user: &authmodule.CurrentUser{
+		actor: &identity.Actor{
 			ID:       9,
-			Username: "reader",
-			Role:     "member",
-			Status:   authmodule.StatusActive,
+			Username: "writer",
+			Role:     "editor",
+			Status:   "active",
 		},
-	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		principal, ok := identity.PrincipalFromContext(r.Context())
-		if !ok {
-			t.Fatal("principal missing from context")
-		}
-		if principal.Kind != identity.PrincipalMember {
-			t.Fatalf("principal kind = %q, want %q", principal.Kind, identity.PrincipalMember)
-		}
+	})(RequireRole("editor")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
-	}))
+	})))
 
-	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req := httptest.NewRequest(http.MethodGet, "/posts", nil)
 	req.Header.Set("Authorization", "Bearer test-token")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -80,13 +79,13 @@ func TestAuthenticateStoresMemberPrincipal(t *testing.T) {
 	}
 }
 
-func TestRequireAdminRejectsMemberPrincipal(t *testing.T) {
+func TestRequireAdminRejectsNonAdminActor(t *testing.T) {
 	handler := Authenticate(stubAuthenticator{
-		user: &authmodule.CurrentUser{
+		actor: &identity.Actor{
 			ID:       11,
-			Username: "member",
-			Role:     "member",
-			Status:   authmodule.StatusActive,
+			Username: "writer",
+			Role:     "editor",
+			Status:   "active",
 		},
 	})(RequireAdmin()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -102,12 +101,12 @@ func TestRequireAdminRejectsMemberPrincipal(t *testing.T) {
 	}
 }
 
-func TestRequireMemberRejectsAnonymous(t *testing.T) {
-	handler := RequireMember()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestRequireAuthenticatedRejectsAnonymous(t *testing.T) {
+	handler := RequireAuthenticated()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req := httptest.NewRequest(http.MethodGet, "/posts", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dovetaill/PureMux/internal/identity"
-	authmodule "github.com/dovetaill/PureMux/internal/modules/auth"
 )
 
 var (
@@ -98,40 +96,40 @@ func (s *Service) Login(ctx context.Context, username, password string) (*AuthRe
 	return s.issueToken(item)
 }
 
-func (s *Service) Authenticate(ctx context.Context, token string) (*authmodule.CurrentUser, error) {
+func (s *Service) Authenticate(ctx context.Context, token string) (*identity.Actor, error) {
 	if s == nil || s.repo == nil || s.tokens == nil {
-		return nil, authmodule.ErrUnauthorized
+		return nil, identity.ErrUnauthorized
 	}
 
 	claims, err := s.tokens.Parse(token)
 	if err != nil {
-		return nil, authmodule.ErrUnauthorized
-	}
-	if claims.Role != RoleMember {
-		return nil, authmodule.ErrUnauthorized
+		return nil, identity.ErrUnauthorized
 	}
 
-	id, err := strconv.ParseUint(claims.Subject, 10, 64)
+	actor, err := claims.Actor()
 	if err != nil {
-		return nil, authmodule.ErrUnauthorized
+		return nil, err
+	}
+	if !actor.HasRole(RoleMember) {
+		return nil, identity.ErrUnauthorized
 	}
 
-	item, err := s.repo.FindByID(ctx, uint(id))
+	item, err := s.repo.FindByID(ctx, actor.ID)
 	if err != nil {
 		if errors.Is(err, ErrMemberNotFound) {
-			return nil, authmodule.ErrUnauthorized
+			return nil, identity.ErrUnauthorized
 		}
 		return nil, err
 	}
 	if item.Status == StatusDisabled {
-		return nil, authmodule.ErrUserDisabled
+		return nil, identity.ErrActorDisabled
 	}
 	if claims.Username != "" && claims.Username != item.Username {
-		return nil, authmodule.ErrUnauthorized
+		return nil, identity.ErrUnauthorized
 	}
 
-	currentUser := item.ToCurrentUser()
-	return &currentUser, nil
+	verifiedActor := item.ToActor()
+	return &verifiedActor, nil
 }
 
 func (s *Service) GetSelf(ctx context.Context, id uint) (*Profile, error) {
@@ -152,8 +150,8 @@ func (s *Service) GetSelf(ctx context.Context, id uint) (*Profile, error) {
 }
 
 func (s *Service) issueToken(item *Member) (*AuthResult, error) {
-	currentUser := item.ToCurrentUser()
-	token, expiresAt, err := s.tokens.Sign(currentUser)
+	actor := item.ToActor()
+	token, expiresAt, err := s.tokens.Sign(actor)
 	if err != nil {
 		return nil, err
 	}
