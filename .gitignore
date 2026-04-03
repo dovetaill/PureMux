@@ -51,6 +51,7 @@ coverage.out
 .cursor/
 .codex/history/
 .worktree/
+.worktrees/
 
 # =========================
 # 操作系统生成文件
