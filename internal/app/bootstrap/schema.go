@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	postmodule "github.com/dovetaill/PureMux/internal/modules/post"
 	"github.com/dovetaill/PureMux/pkg/config"
 	"github.com/dovetaill/PureMux/pkg/database"
 )
@@ -32,6 +33,10 @@ type SeedAdminStore interface {
 }
 
 type passwordHasher func(password string) (string, error)
+
+func init() {
+	RegisterBusinessModels(postmodule.Post{})
+}
 
 func RegisterBusinessModels(models ...any) {
 	for _, model := range models {
