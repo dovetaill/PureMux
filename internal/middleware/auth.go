@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dovetaill/PureMux/internal/api/response"
+	"github.com/dovetaill/PureMux/internal/identity"
 	"github.com/dovetaill/PureMux/internal/modules/auth"
 )
 
@@ -37,6 +38,7 @@ func Authenticate(authenticator authenticator) Middleware {
 			}
 
 			ctx := auth.ContextWithCurrentUser(r.Context(), *currentUser)
+			ctx = identity.ContextWithPrincipal(ctx, identity.PrincipalFromCurrentUser(*currentUser))
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
