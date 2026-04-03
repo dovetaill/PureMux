@@ -16,6 +16,16 @@ func OK(message string, data any) Envelope {
 	}
 }
 
+// Paged 返回标准分页成功响应。
+func Paged(message string, page, pageSize int, total int64, items any) Envelope {
+	return OK(message, map[string]any{
+		"page":      page,
+		"page_size": pageSize,
+		"total":     total,
+		"items":     items,
+	})
+}
+
 // Fail 返回标准失败响应。
 func Fail(code int, message string) Envelope {
 	return Envelope{

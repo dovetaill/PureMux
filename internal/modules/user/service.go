@@ -98,6 +98,13 @@ func (s *Service) List(ctx context.Context, page, pageSize int) (*ListResult, er
 	return &ListResult{Page: page, PageSize: pageSize, Total: total, Items: items}, nil
 }
 
+func (s *Service) Get(ctx context.Context, id uint) (*authmodule.User, error) {
+	if s == nil || s.repo == nil || id == 0 {
+		return nil, ErrInvalidUserInput
+	}
+	return s.repo.FindByID(ctx, id)
+}
+
 func (s *Service) Update(ctx context.Context, input UpdateInput) (*authmodule.User, error) {
 	if s == nil || s.repo == nil || s.hashSecret == nil {
 		return nil, ErrInvalidUserInput

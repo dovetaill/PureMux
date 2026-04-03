@@ -17,33 +17,37 @@ type routeService interface {
 	Delete(ctx context.Context, id uint) error
 }
 
-type createInput struct {
-	Body struct {
-		Name        string `json:"name"`
-		Slug        string `json:"slug"`
-		Description string `json:"description"`
-	}
+type categoryCreateBody struct {
+	Name        string `json:"name"`
+	Slug        string `json:"slug"`
+	Description string `json:"description"`
 }
 
-type listInput struct {
+type categoryCreateRequest struct {
+	Body categoryCreateBody
+}
+
+type categoryListRequest struct {
 	Page     int `query:"page"`
 	PageSize int `query:"page_size"`
 }
 
-type idInput struct {
+type categoryIDRequest struct {
 	ID string `path:"id"`
 }
 
-type updateInput struct {
-	ID   string `path:"id"`
-	Body struct {
-		Name        *string `json:"name,omitempty"`
-		Slug        *string `json:"slug,omitempty"`
-		Description *string `json:"description,omitempty"`
-	}
+type categoryUpdateBody struct {
+	Name        *string `json:"name,omitempty"`
+	Slug        *string `json:"slug,omitempty"`
+	Description *string `json:"description,omitempty"`
 }
 
-type envelopeOutput struct {
+type categoryUpdateRequest struct {
+	ID   string `path:"id"`
+	Body categoryUpdateBody
+}
+
+type categoryEnvelopeOutput struct {
 	Status int `status:"200"`
 	Body   response.Envelope
 }
@@ -53,63 +57,63 @@ func RegisterRoutes(api huma.API, service routeService) {
 		return
 	}
 
-	huma.Register(api, huma.Operation{OperationID: "admin-category-create", Method: http.MethodPost, Path: "/api/v1/admin/categories", Summary: "create category"}, func(ctx context.Context, input *createInput) (*envelopeOutput, error) {
+	huma.Register(api, huma.Operation{OperationID: "admin-category-create", Method: http.MethodPost, Path: "/api/v1/admin/categories", Summary: "create category"}, func(ctx context.Context, input *categoryCreateRequest) (*categoryEnvelopeOutput, error) {
 		item, err := service.Create(ctx, CreateInput{Name: input.Body.Name, Slug: input.Body.Slug, Description: input.Body.Description})
 		if err != nil {
 			status, message := StatusFromError(err)
-			return &envelopeOutput{Status: status, Body: response.Fail(status, message)}, nil
+			return &categoryEnvelopeOutput{Status: status, Body: response.Fail(status, message)}, nil
 		}
-		return &envelopeOutput{Status: http.StatusCreated, Body: response.OK("category created", item)}, nil
+		return &categoryEnvelopeOutput{Status: http.StatusCreated, Body: response.OK("category created", item)}, nil
 	})
 
-	huma.Register(api, huma.Operation{OperationID: "admin-category-list", Method: http.MethodGet, Path: "/api/v1/admin/categories", Summary: "list categories"}, func(ctx context.Context, input *listInput) (*envelopeOutput, error) {
+	huma.Register(api, huma.Operation{OperationID: "admin-category-list", Method: http.MethodGet, Path: "/api/v1/admin/categories", Summary: "list categories"}, func(ctx context.Context, input *categoryListRequest) (*categoryEnvelopeOutput, error) {
 		result, err := service.List(ctx, input.Page, input.PageSize)
 		if err != nil {
 			status, message := StatusFromError(err)
-			return &envelopeOutput{Status: status, Body: response.Fail(status, message)}, nil
+			return &categoryEnvelopeOutput{Status: status, Body: response.Fail(status, message)}, nil
 		}
-		return &envelopeOutput{Status: http.StatusOK, Body: response.OK("category list", result)}, nil
+		return &categoryEnvelopeOutput{Status: http.StatusOK, Body: response.Paged("category list", result.Page, result.PageSize, result.Total, result.Items)}, nil
 	})
 
-	huma.Register(api, huma.Operation{OperationID: "admin-category-get", Method: http.MethodGet, Path: "/api/v1/admin/categories/{id}", Summary: "get category"}, func(ctx context.Context, input *idInput) (*envelopeOutput, error) {
+	huma.Register(api, huma.Operation{OperationID: "admin-category-get", Method: http.MethodGet, Path: "/api/v1/admin/categories/{id}", Summary: "get category"}, func(ctx context.Context, input *categoryIDRequest) (*categoryEnvelopeOutput, error) {
 		id, err := parseID(input.ID)
 		if err != nil {
 			status := http.StatusBadRequest
-			return &envelopeOutput{Status: status, Body: response.Fail(status, "invalid category input")}, nil
+			return &categoryEnvelopeOutput{Status: status, Body: response.Fail(status, "invalid category input")}, nil
 		}
 		item, err := service.Get(ctx, id)
 		if err != nil {
 			status, message := StatusFromError(err)
-			return &envelopeOutput{Status: status, Body: response.Fail(status, message)}, nil
+			return &categoryEnvelopeOutput{Status: status, Body: response.Fail(status, message)}, nil
 		}
-		return &envelopeOutput{Status: http.StatusOK, Body: response.OK("category detail", item)}, nil
+		return &categoryEnvelopeOutput{Status: http.StatusOK, Body: response.OK("category detail", item)}, nil
 	})
 
-	huma.Register(api, huma.Operation{OperationID: "admin-category-update", Method: http.MethodPatch, Path: "/api/v1/admin/categories/{id}", Summary: "update category"}, func(ctx context.Context, input *updateInput) (*envelopeOutput, error) {
+	huma.Register(api, huma.Operation{OperationID: "admin-category-update", Method: http.MethodPatch, Path: "/api/v1/admin/categories/{id}", Summary: "update category"}, func(ctx context.Context, input *categoryUpdateRequest) (*categoryEnvelopeOutput, error) {
 		id, err := parseID(input.ID)
 		if err != nil {
 			status := http.StatusBadRequest
-			return &envelopeOutput{Status: status, Body: response.Fail(status, "invalid category input")}, nil
+			return &categoryEnvelopeOutput{Status: status, Body: response.Fail(status, "invalid category input")}, nil
 		}
 		item, err := service.Update(ctx, UpdateInput{ID: id, Name: stringValue(input.Body.Name), Slug: stringValue(input.Body.Slug), Description: input.Body.Description})
 		if err != nil {
 			status, message := StatusFromError(err)
-			return &envelopeOutput{Status: status, Body: response.Fail(status, message)}, nil
+			return &categoryEnvelopeOutput{Status: status, Body: response.Fail(status, message)}, nil
 		}
-		return &envelopeOutput{Status: http.StatusOK, Body: response.OK("category updated", item)}, nil
+		return &categoryEnvelopeOutput{Status: http.StatusOK, Body: response.OK("category updated", item)}, nil
 	})
 
-	huma.Register(api, huma.Operation{OperationID: "admin-category-delete", Method: http.MethodDelete, Path: "/api/v1/admin/categories/{id}", Summary: "delete category"}, func(ctx context.Context, input *idInput) (*envelopeOutput, error) {
+	huma.Register(api, huma.Operation{OperationID: "admin-category-delete", Method: http.MethodDelete, Path: "/api/v1/admin/categories/{id}", Summary: "delete category"}, func(ctx context.Context, input *categoryIDRequest) (*categoryEnvelopeOutput, error) {
 		id, err := parseID(input.ID)
 		if err != nil {
 			status := http.StatusBadRequest
-			return &envelopeOutput{Status: status, Body: response.Fail(status, "invalid category input")}, nil
+			return &categoryEnvelopeOutput{Status: status, Body: response.Fail(status, "invalid category input")}, nil
 		}
 		if err := service.Delete(ctx, id); err != nil {
 			status, message := StatusFromError(err)
-			return &envelopeOutput{Status: status, Body: response.Fail(status, message)}, nil
+			return &categoryEnvelopeOutput{Status: status, Body: response.Fail(status, message)}, nil
 		}
-		return &envelopeOutput{Status: http.StatusOK, Body: response.OK("category deleted", map[string]uint{"id": id})}, nil
+		return &categoryEnvelopeOutput{Status: http.StatusOK, Body: response.OK("category deleted", map[string]uint{"id": id})}, nil
 	})
 }
 
