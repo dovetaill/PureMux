@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dovetaill/PureMux/pkg/config"
+	"github.com/dovetaill/PureMux/pkg/database"
 )
 
 const (
@@ -38,6 +39,15 @@ func RegisterBusinessModels(models ...any) {
 			continue
 		}
 		businessModels = append(businessModels, model)
+	}
+}
+
+func RegisterSeedAdminSupport(factory func(resources *database.Resources) SeedAdminStore, hash func(password string) (string, error)) {
+	if factory != nil {
+		newSeedAdminStoreFn = factory
+	}
+	if hash != nil {
+		seedAdminPasswordHashFn = hash
 	}
 }
 

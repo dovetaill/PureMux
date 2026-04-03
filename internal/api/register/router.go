@@ -11,11 +11,12 @@ import (
 	"github.com/dovetaill/PureMux/internal/api/handlers"
 	"github.com/dovetaill/PureMux/internal/app/bootstrap"
 	"github.com/dovetaill/PureMux/internal/middleware"
+	"github.com/dovetaill/PureMux/internal/modules/auth"
 )
 
 // NewRouter 构建基于 Huma 的 HTTP 路由。
 func NewRouter(rt *bootstrap.Runtime) http.Handler {
-	mux := http.NewServeMux()
+	apiMux := http.NewServeMux()
 	cfg := huma.DefaultConfig("PureMux API", "0.1.0")
 	if rt != nil && rt.Config != nil {
 		if rt.Config.App.Name != "" {
@@ -27,9 +28,20 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 		}
 	}
 
-	api := humago.New(mux, cfg)
+	api := humago.New(apiMux, cfg)
 	handlers.RegisterHealth(api)
 	handlers.RegisterReady(api, rt)
+
+	handler := http.Handler(apiMux)
+	if authService := newAuthService(rt); authService != nil {
+		auth.RegisterRoutes(api, authService)
+
+		rootMux := http.NewServeMux()
+		rootMux.Handle("/api/v1/auth/me", middleware.RequireAuthenticated()(apiMux))
+		rootMux.Handle("/api/v1/admin/", middleware.RequireAdmin()(middleware.RequireAuthenticated()(apiMux)))
+		rootMux.Handle("/", apiMux)
+		handler = middleware.Authenticate(authService)(rootMux)
+	}
 
 	timeout := 15 * time.Second
 	if rt != nil && rt.Config != nil && rt.Config.HTTP.ReadTimeoutSeconds > 0 {
@@ -37,7 +49,7 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 	}
 
 	return middleware.Chain(
-		mux,
+		handler,
 		middleware.RequestID(),
 		middleware.Recover(),
 		middleware.Timeout(timeout),
@@ -54,6 +66,15 @@ func normalizeOpenAPIPath(path string) string {
 		return strings.TrimSuffix(path, ".json")
 	}
 	return path
+}
+
+func newAuthService(rt *bootstrap.Runtime) *auth.Service {
+	if rt == nil || rt.Config == nil || rt.Resources == nil || rt.Resources.MySQL == nil {
+		return nil
+	}
+	repo := auth.NewRepository(rt.Resources.MySQL)
+	tokens := auth.NewTokenManager(rt.Config.Auth.JWT)
+	return auth.NewService(repo, tokens)
 }
 
 func nilLogger(rt *bootstrap.Runtime) *slog.Logger {
