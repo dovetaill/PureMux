@@ -12,6 +12,7 @@ import (
 	"github.com/dovetaill/PureMux/internal/app/bootstrap"
 	"github.com/dovetaill/PureMux/internal/middleware"
 	"github.com/dovetaill/PureMux/internal/modules/auth"
+	categorymodule "github.com/dovetaill/PureMux/internal/modules/category"
 	usermodule "github.com/dovetaill/PureMux/internal/modules/user"
 )
 
@@ -38,6 +39,9 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 		auth.RegisterRoutes(api, authService)
 		if userService := newUserService(rt); userService != nil {
 			usermodule.RegisterRoutes(api, userService)
+		}
+		if categoryService := newCategoryService(rt); categoryService != nil {
+			categorymodule.RegisterRoutes(api, categoryService)
 		}
 
 		rootMux := http.NewServeMux()
@@ -87,6 +91,14 @@ func newUserService(rt *bootstrap.Runtime) *usermodule.Service {
 	}
 	repo := usermodule.NewRepository(rt.Resources.MySQL)
 	return usermodule.NewService(repo, auth.HashPassword)
+}
+
+func newCategoryService(rt *bootstrap.Runtime) *categorymodule.Service {
+	if rt == nil || rt.Resources == nil || rt.Resources.MySQL == nil {
+		return nil
+	}
+	repo := categorymodule.NewRepository(rt.Resources.MySQL)
+	return categorymodule.NewService(repo)
 }
 
 func nilLogger(rt *bootstrap.Runtime) *slog.Logger {
