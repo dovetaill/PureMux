@@ -138,6 +138,46 @@ func (s *categoryRepoStub) Delete(ctx context.Context, id uint) error {
 	return nil
 }
 
+func TestPublicCategoryListIsAccessibleWithoutAuth(t *testing.T) {
+	handler := newAdminCategoryHandler(t, authmodule.RoleAdmin,
+		&categorymodule.Category{ID: 1, Name: "News", Slug: "news", Description: "daily"},
+		&categorymodule.Category{ID: 2, Name: "Tech", Slug: "tech", Description: "technology"},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/categories?page=1&page_size=20", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	got := decodeEnvelope(t, rec)
+	data := envelopeData(t, got)
+	if int(data["total"].(float64)) != 2 {
+		t.Fatalf("total = %v, want %d", data["total"], 2)
+	}
+}
+
+func TestAdminCategoryCrudStillRequiresAdmin(t *testing.T) {
+	handler := newAdminCategoryHandler(t, authmodule.RoleUser)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/categories", strings.NewReader(`{"name":"News","slug":"news","description":"daily news"}`))
+	req.Header.Set("Authorization", "Bearer "+mustActorToken(t, authmodule.RoleUser))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
+	}
+
+	got := decodeEnvelope(t, rec)
+	if got.Message != "forbidden" {
+		t.Fatalf("message = %q, want %q", got.Message, "forbidden")
+	}
+}
+
 func TestAdminCanCreateCategory(t *testing.T) {
 	handler := newAdminCategoryHandler(t, authmodule.RoleAdmin)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/categories", strings.NewReader(`{"name":"News","slug":"news","description":"daily news"}`))
@@ -272,7 +312,8 @@ func newAdminCategoryHandler(t *testing.T, actorRole string, items ...*categorym
 
 	apiMux := http.NewServeMux()
 	api := humago.New(apiMux, huma.DefaultConfig("Test API", "1.0.0"))
-	categorymodule.RegisterRoutes(api, service)
+	categorymodule.RegisterPublicRoutes(api, service)
+	categorymodule.RegisterAdminRoutes(api, service)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/api/v1/admin/", middleware.RequireAdmin()(middleware.RequireAuthenticated()(apiMux)))

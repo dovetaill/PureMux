@@ -47,7 +47,8 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 			usermodule.RegisterRoutes(adminRoutes, userService)
 		}
 		if categoryService := newCategoryService(rt); categoryService != nil {
-			categorymodule.RegisterRoutes(adminRoutes, categoryService)
+			categorymodule.RegisterPublicRoutes(publicRoutes, categoryService)
+			categorymodule.RegisterAdminRoutes(adminRoutes, categoryService)
 		}
 		if articleService := newArticleService(rt); articleService != nil {
 			articlemodule.RegisterPublicRoutes(publicRoutes, articleService)

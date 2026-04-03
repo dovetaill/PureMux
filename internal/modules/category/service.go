@@ -86,6 +86,10 @@ func (s *Service) List(ctx context.Context, page, pageSize int) (*ListResult, er
 	return &ListResult{Page: page, PageSize: pageSize, Total: total, Items: items}, nil
 }
 
+func (s *Service) ListPublic(ctx context.Context, page, pageSize int) (*ListResult, error) {
+	return s.List(ctx, page, pageSize)
+}
+
 func (s *Service) Get(ctx context.Context, id uint) (*Category, error) {
 	if s == nil || s.repo == nil || id == 0 {
 		return nil, ErrInvalidCategoryInput

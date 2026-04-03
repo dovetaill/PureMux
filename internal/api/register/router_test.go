@@ -50,6 +50,7 @@ func TestRouterRegistersAuthAndBusinessRoutes(t *testing.T) {
 	assertOperation(t, doc.Paths, "/api/v1/admin/categories/{id}", http.MethodGet)
 	assertOperation(t, doc.Paths, "/api/v1/admin/categories/{id}", http.MethodPatch)
 	assertOperation(t, doc.Paths, "/api/v1/admin/categories/{id}", http.MethodDelete)
+	assertOperation(t, doc.Paths, "/api/v1/categories", http.MethodGet)
 	assertOperation(t, doc.Paths, "/api/v1/articles", http.MethodGet)
 	assertOperation(t, doc.Paths, "/api/v1/articles/{slug}", http.MethodGet)
 	assertOperation(t, doc.Paths, "/api/v1/admin/articles", http.MethodPost)
