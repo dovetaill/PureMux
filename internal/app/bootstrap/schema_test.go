@@ -142,7 +142,7 @@ func TestSeedAdminSkipsWhenDisabled(t *testing.T) {
 	}
 }
 
-func TestBuildServerRuntimeRunsSchemaAndSeedAdmin(t *testing.T) {
+func TestBuildServerRuntimeRunsSchemaWithoutSeedAdmin(t *testing.T) {
 	origLoadConfig := loadConfigFn
 	origNewLogger := newLoggerFn
 	origBootstrapDatabase := bootstrapDatabaseFn
@@ -171,6 +171,7 @@ func TestBuildServerRuntimeRunsSchemaAndSeedAdmin(t *testing.T) {
 	resources := &database.Resources{MySQL: &gorm.DB{}}
 	store := &testSeedAdminStore{}
 	autoMigrateCalls := 0
+	newSeedStoreCalls := 0
 	hashCalls := 0
 
 	loadConfigFn = func(path string) (*config.Config, error) {
@@ -187,6 +188,7 @@ func TestBuildServerRuntimeRunsSchemaAndSeedAdmin(t *testing.T) {
 		return nil
 	}
 	newSeedAdminStoreFn = func(resources *database.Resources) SeedAdminStore {
+		newSeedStoreCalls++
 		return store
 	}
 	seedAdminPasswordHashFn = func(password string) (string, error) {
@@ -202,10 +204,13 @@ func TestBuildServerRuntimeRunsSchemaAndSeedAdmin(t *testing.T) {
 	if autoMigrateCalls != 1 {
 		t.Fatalf("auto migrate call count = %d, want %d", autoMigrateCalls, 1)
 	}
-	if store.createCalls != 1 {
-		t.Fatalf("seed admin create count = %d, want %d", store.createCalls, 1)
+	if newSeedStoreCalls != 0 {
+		t.Fatalf("new seed admin store call count = %d, want %d", newSeedStoreCalls, 0)
 	}
-	if hashCalls != 1 {
-		t.Fatalf("seed admin password hasher count = %d, want %d", hashCalls, 1)
+	if store.createCalls != 0 {
+		t.Fatalf("seed admin create count = %d, want %d", store.createCalls, 0)
+	}
+	if hashCalls != 0 {
+		t.Fatalf("seed admin password hasher count = %d, want %d", hashCalls, 0)
 	}
 }

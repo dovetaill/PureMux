@@ -10,8 +10,6 @@ import (
 
 	"github.com/dovetaill/PureMux/internal/api/register"
 	"github.com/dovetaill/PureMux/internal/app/bootstrap"
-	"github.com/dovetaill/PureMux/internal/identity"
-	authmodule "github.com/dovetaill/PureMux/internal/modules/auth"
 	"github.com/dovetaill/PureMux/pkg/config"
 	"github.com/dovetaill/PureMux/pkg/database"
 	"gorm.io/gorm"
@@ -21,7 +19,7 @@ type openAPIDocument struct {
 	Paths map[string]map[string]any `json:"paths"`
 }
 
-func TestRouterRegistersAuthAndBusinessRoutes(t *testing.T) {
+func TestRouterRegistersStarterRoutes(t *testing.T) {
 	handler := register.NewRouter(newRouterTestRuntime())
 
 	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
@@ -37,79 +35,60 @@ func TestRouterRegistersAuthAndBusinessRoutes(t *testing.T) {
 		t.Fatalf("decode openapi: %v", err)
 	}
 
-	assertOperation(t, doc.Paths, "/api/v1/auth/login", http.MethodPost)
-	assertOperation(t, doc.Paths, "/api/v1/auth/me", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/member/auth/register", http.MethodPost)
-	assertOperation(t, doc.Paths, "/api/v1/member/auth/login", http.MethodPost)
-	assertOperation(t, doc.Paths, "/api/v1/me", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/me/favorites", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/admin/users", http.MethodPost)
-	assertOperation(t, doc.Paths, "/api/v1/admin/users", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/admin/users/{id}", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/admin/users/{id}", http.MethodPatch)
-	assertOperation(t, doc.Paths, "/api/v1/admin/users/{id}", http.MethodDelete)
-	assertOperation(t, doc.Paths, "/api/v1/admin/categories", http.MethodPost)
-	assertOperation(t, doc.Paths, "/api/v1/admin/categories", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/admin/categories/{id}", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/admin/categories/{id}", http.MethodPatch)
-	assertOperation(t, doc.Paths, "/api/v1/admin/categories/{id}", http.MethodDelete)
-	assertOperation(t, doc.Paths, "/api/v1/categories", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/articles", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/articles/{slug}", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/articles/{id}/likes", http.MethodPost)
-	assertOperation(t, doc.Paths, "/api/v1/articles/{id}/likes", http.MethodDelete)
-	assertOperation(t, doc.Paths, "/api/v1/articles/{id}/favorites", http.MethodPost)
-	assertOperation(t, doc.Paths, "/api/v1/articles/{id}/favorites", http.MethodDelete)
-	assertOperation(t, doc.Paths, "/api/v1/admin/articles", http.MethodPost)
-	assertOperation(t, doc.Paths, "/api/v1/admin/articles", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/admin/articles/{id}", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/admin/articles/{id}", http.MethodPatch)
-	assertOperation(t, doc.Paths, "/api/v1/admin/articles/{id}", http.MethodDelete)
-	assertOperation(t, doc.Paths, "/api/v1/admin/articles/{id}/publish", http.MethodPost)
-	assertOperation(t, doc.Paths, "/api/v1/admin/articles/{id}/unpublish", http.MethodPost)
+	assertOperation(t, doc.Paths, "/healthz", http.MethodGet)
+	assertOperation(t, doc.Paths, "/readyz", http.MethodGet)
+	assertOperation(t, doc.Paths, "/api/v1/posts", http.MethodGet)
+	assertOperation(t, doc.Paths, "/api/v1/posts", http.MethodPost)
+	assertOperation(t, doc.Paths, "/api/v1/posts/{id}", http.MethodGet)
+	assertOperation(t, doc.Paths, "/api/v1/posts/{id}", http.MethodPatch)
+	assertOperation(t, doc.Paths, "/api/v1/posts/{id}", http.MethodDelete)
+
+	assertPathAbsent(t, doc.Paths, "/api/v1/auth/login")
+	assertPathAbsent(t, doc.Paths, "/api/v1/auth/me")
+	assertPathAbsent(t, doc.Paths, "/api/v1/member/auth/register")
+	assertPathAbsent(t, doc.Paths, "/api/v1/member/auth/login")
+	assertPathAbsent(t, doc.Paths, "/api/v1/me")
+	assertPathAbsent(t, doc.Paths, "/api/v1/me/favorites")
+	assertPathAbsent(t, doc.Paths, "/api/v1/admin/users")
+	assertPathAbsent(t, doc.Paths, "/api/v1/admin/categories")
+	assertPathAbsent(t, doc.Paths, "/api/v1/categories")
+	assertPathAbsent(t, doc.Paths, "/api/v1/articles")
+	assertPathAbsent(t, doc.Paths, "/api/v1/admin/articles")
 }
 
-func TestPublicArticleRoutesAreAccessibleWithoutAuth(t *testing.T) {
+func TestRouterServesStarterHealthAndDocsEndpoints(t *testing.T) {
 	handler := register.NewRouter(newRouterTestRuntime())
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/articles?page=1&page_size=20", nil)
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code == http.StatusUnauthorized {
-		t.Fatalf("status = %d, want non-%d for unauthenticated public article route", rec.Code, http.StatusUnauthorized)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("healthz status = %d, want %d", rec.Code, http.StatusOK)
 	}
-}
 
-func TestMemberRoutesRequireMemberAuth(t *testing.T) {
-	handler := register.NewRouter(newRouterTestRuntime())
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
-	rec := httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want %d for unauthenticated member route", rec.Code, http.StatusUnauthorized)
-	}
-}
-
-func TestAdminRoutesRejectNonAdminPrincipal(t *testing.T) {
-	handler := register.NewRouter(newRouterTestRuntime())
-	currentUser := authmodule.CurrentUser{
-		ID:       7,
-		Username: "writer",
-		Role:     authmodule.RoleUser,
-		Status:   authmodule.StatusActive,
+	if rec.Code != http.StatusOK {
+		t.Fatalf("readyz status = %d, want %d", rec.Code, http.StatusOK)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/users", nil)
-	req = req.WithContext(authmodule.ContextWithCurrentUser(req.Context(), currentUser))
-	req = req.WithContext(identity.ContextWithPrincipal(req.Context(), identity.PrincipalFromActor(currentUser.ToActor())))
-	rec := httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want %d for non-admin principal on admin route", rec.Code, http.StatusForbidden)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("openapi status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/docs", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code >= http.StatusBadRequest {
+		t.Fatalf("docs status = %d, want < %d", rec.Code, http.StatusBadRequest)
 	}
 }
 
@@ -141,6 +120,13 @@ func assertOperation(t *testing.T, paths map[string]map[string]any, path string,
 	}
 	if _, ok := operations[httpMethodKey(method)]; !ok {
 		t.Fatalf("missing %s %s operation", method, path)
+	}
+}
+
+func assertPathAbsent(t *testing.T, paths map[string]map[string]any, path string) {
+	t.Helper()
+	if _, ok := paths[path]; ok {
+		t.Fatalf("path %s should not be registered on starter router", path)
 	}
 }
 
