@@ -17,6 +17,7 @@ import (
 	articlemodule "github.com/dovetaill/PureMux/internal/modules/article"
 	"github.com/dovetaill/PureMux/internal/modules/auth"
 	categorymodule "github.com/dovetaill/PureMux/internal/modules/category"
+	engagementmodule "github.com/dovetaill/PureMux/internal/modules/engagement"
 	membermodule "github.com/dovetaill/PureMux/internal/modules/member"
 	usermodule "github.com/dovetaill/PureMux/internal/modules/user"
 	"github.com/dovetaill/PureMux/pkg/config"
@@ -68,6 +69,9 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 		authenticators = append(authenticators, memberService)
 		membermodule.RegisterPublicRoutes(memberAuthRoutes, memberService)
 		membermodule.RegisterSelfRoutes(memberSelfRoutes, memberService)
+	}
+	if engagementService := newEngagementService(rt); engagementService != nil {
+		engagementmodule.RegisterRoutes(memberSelfRoutes, engagementService)
 	}
 	if len(authenticators) > 0 {
 		handler = middleware.Authenticate(compositeAuthenticator{authenticators: authenticators})(apiMux)
@@ -137,6 +141,14 @@ func newMemberService(rt *bootstrap.Runtime) *membermodule.Service {
 	}
 	repo := membermodule.NewRepository(rt.Resources.MySQL)
 	return membermodule.NewService(repo, identity.NewTokenManager(memberJWTConfig(rt.Config.Auth.JWT)))
+}
+
+func newEngagementService(rt *bootstrap.Runtime) *engagementmodule.Service {
+	if rt == nil || rt.Resources == nil || rt.Resources.MySQL == nil {
+		return nil
+	}
+	repo := engagementmodule.NewRepository(rt.Resources.MySQL)
+	return engagementmodule.NewService(repo)
 }
 
 func nilLogger(rt *bootstrap.Runtime) *slog.Logger {
