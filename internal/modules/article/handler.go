@@ -13,6 +13,7 @@ import (
 type routeService interface {
 	Create(ctx context.Context, actor authmodule.CurrentUser, input CreateInput) (*Article, error)
 	List(ctx context.Context, actor authmodule.CurrentUser, page, pageSize int) (*ListResult, error)
+	ListPublic(ctx context.Context, page, pageSize int) (*ListResult, error)
 	Get(ctx context.Context, actor authmodule.CurrentUser, id uint) (*Article, error)
 	Update(ctx context.Context, actor authmodule.CurrentUser, input UpdateInput) (*Article, error)
 	Delete(ctx context.Context, actor authmodule.CurrentUser, id uint) error
@@ -79,8 +80,12 @@ func RegisterRoutes(api huma.API, service routeService) {
 	huma.Register(api, huma.Operation{OperationID: "article-list", Method: http.MethodGet, Path: "/api/v1/articles", Summary: "list articles"}, func(ctx context.Context, input *articleListRequest) (*articleEnvelopeOutput, error) {
 		actor, ok := authmodule.CurrentUserFromContext(ctx)
 		if !ok {
-			status := http.StatusUnauthorized
-			return &articleEnvelopeOutput{Status: status, Body: response.Fail(status, "unauthorized")}, nil
+			result, err := service.ListPublic(ctx, input.Page, input.PageSize)
+			if err != nil {
+				status, message := StatusFromError(err)
+				return &articleEnvelopeOutput{Status: status, Body: response.Fail(status, message)}, nil
+			}
+			return &articleEnvelopeOutput{Status: http.StatusOK, Body: response.Paged("article list", result.Page, result.PageSize, result.Total, result.Items)}, nil
 		}
 		result, err := service.List(ctx, actor, input.Page, input.PageSize)
 		if err != nil {

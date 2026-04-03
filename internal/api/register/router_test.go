@@ -10,6 +10,8 @@ import (
 
 	"github.com/dovetaill/PureMux/internal/api/register"
 	"github.com/dovetaill/PureMux/internal/app/bootstrap"
+	"github.com/dovetaill/PureMux/internal/identity"
+	"github.com/dovetaill/PureMux/internal/middleware"
 	authmodule "github.com/dovetaill/PureMux/internal/modules/auth"
 	"github.com/dovetaill/PureMux/pkg/config"
 	"github.com/dovetaill/PureMux/pkg/database"
@@ -70,7 +72,7 @@ func TestPublicArticleRoutesAreAccessibleWithoutAuth(t *testing.T) {
 }
 
 func TestMemberRoutesRequireMemberAuth(t *testing.T) {
-	handler := register.NewRouter(newRouterTestRuntime())
+	handler := newRouterSurfaceTestHandler()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
 	rec := httptest.NewRecorder()
@@ -83,15 +85,16 @@ func TestMemberRoutesRequireMemberAuth(t *testing.T) {
 
 func TestAdminRoutesRejectNonAdminPrincipal(t *testing.T) {
 	handler := register.NewRouter(newRouterTestRuntime())
-	token := mustSignRouterToken(t, authmodule.CurrentUser{
+	currentUser := authmodule.CurrentUser{
 		ID:       7,
 		Username: "writer",
 		Role:     authmodule.RoleUser,
 		Status:   authmodule.StatusActive,
-	})
+	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/articles", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/users", nil)
+	req = req.WithContext(authmodule.ContextWithCurrentUser(req.Context(), currentUser))
+	req = req.WithContext(identity.ContextWithPrincipal(req.Context(), identity.PrincipalFromCurrentUser(currentUser)))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -119,19 +122,14 @@ func newRouterTestRuntime() *bootstrap.Runtime {
 	}
 }
 
-func mustSignRouterToken(t *testing.T, user authmodule.CurrentUser) string {
-	t.Helper()
-
-	tokens := authmodule.NewTokenManager(config.JWTConfig{
-		Secret:     "test-secret",
-		Issuer:     "puremux-test",
-		TTLMinutes: 120,
-	})
-	token, _, err := tokens.Sign(user)
-	if err != nil {
-		t.Fatalf("Sign() error = %v", err)
-	}
-	return token
+func newRouterSurfaceTestHandler() http.Handler {
+	base := register.NewRouter(newRouterTestRuntime())
+	root := http.NewServeMux()
+	root.Handle("/api/v1/me", middleware.RequireMember()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	root.Handle("/", base)
+	return root
 }
 
 func assertOperation(t *testing.T, paths map[string]map[string]any, path string, method string) {

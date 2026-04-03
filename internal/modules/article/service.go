@@ -98,6 +98,20 @@ func (s *Service) List(ctx context.Context, actor authmodule.CurrentUser, page, 
 	return &ListResult{Page: page, PageSize: pageSize, Total: total, Items: items}, nil
 }
 
+func (s *Service) ListPublic(ctx context.Context, page, pageSize int) (*ListResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, ErrInvalidArticleInput
+	}
+	page, pageSize = normalizePage(page, pageSize)
+
+	status := StatusPublished
+	items, total, err := s.repo.List(ctx, ListFilter{Status: &status}, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return &ListResult{Page: page, PageSize: pageSize, Total: total, Items: items}, nil
+}
+
 func (s *Service) Get(ctx context.Context, actor authmodule.CurrentUser, id uint) (*Article, error) {
 	item, err := s.loadOwnedArticle(ctx, actor, id)
 	if err != nil {

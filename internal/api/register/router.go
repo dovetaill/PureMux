@@ -10,6 +10,7 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/dovetaill/PureMux/internal/api/handlers"
 	"github.com/dovetaill/PureMux/internal/app/bootstrap"
+	"github.com/dovetaill/PureMux/internal/identity"
 	"github.com/dovetaill/PureMux/internal/middleware"
 	articlemodule "github.com/dovetaill/PureMux/internal/modules/article"
 	"github.com/dovetaill/PureMux/internal/modules/auth"
@@ -32,29 +33,26 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 	}
 
 	api := humago.New(apiMux, cfg)
-	handlers.RegisterHealth(api)
-	handlers.RegisterReady(api, rt)
+	publicRoutes := huma.NewGroup(api)
+	adminRoutes := huma.NewGroup(api)
+	adminRoutes.UseMiddleware(requireAdminMiddleware(api))
+
+	handlers.RegisterHealth(publicRoutes)
+	handlers.RegisterReady(publicRoutes, rt)
 
 	handler := http.Handler(apiMux)
 	if authService := newAuthService(rt); authService != nil {
-		auth.RegisterRoutes(api, authService)
+		auth.RegisterRoutes(publicRoutes, authService)
 		if userService := newUserService(rt); userService != nil {
-			usermodule.RegisterRoutes(api, userService)
+			usermodule.RegisterRoutes(adminRoutes, userService)
 		}
 		if categoryService := newCategoryService(rt); categoryService != nil {
-			categorymodule.RegisterRoutes(api, categoryService)
+			categorymodule.RegisterRoutes(adminRoutes, categoryService)
 		}
 		if articleService := newArticleService(rt); articleService != nil {
-			articlemodule.RegisterRoutes(api, articleService)
+			articlemodule.RegisterRoutes(publicRoutes, articleService)
 		}
-
-		rootMux := http.NewServeMux()
-		rootMux.Handle("/api/v1/auth/me", middleware.RequireAuthenticated()(apiMux))
-		rootMux.Handle("/api/v1/admin/", middleware.RequireAdmin()(middleware.RequireAuthenticated()(apiMux)))
-		rootMux.Handle("/api/v1/articles", middleware.RequireAuthenticated()(apiMux))
-		rootMux.Handle("/api/v1/articles/", middleware.RequireAuthenticated()(apiMux))
-		rootMux.Handle("/", apiMux)
-		handler = middleware.Authenticate(authService)(rootMux)
+		handler = middleware.Authenticate(authService)(apiMux)
 	}
 
 	timeout := 15 * time.Second
@@ -120,4 +118,28 @@ func nilLogger(rt *bootstrap.Runtime) *slog.Logger {
 		return nil
 	}
 	return rt.Logger
+}
+
+func requireAdminMiddleware(api huma.API) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		if principal, ok := identity.PrincipalFromContext(ctx.Context()); ok {
+			if principal.Kind != identity.PrincipalAdmin {
+				_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+				return
+			}
+			next(ctx)
+			return
+		}
+
+		currentUser, ok := auth.CurrentUserFromContext(ctx.Context())
+		if !ok {
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		if currentUser.Role != auth.RoleAdmin {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+			return
+		}
+		next(ctx)
+	}
 }

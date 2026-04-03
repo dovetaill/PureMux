@@ -31,6 +31,9 @@ func (r *Repository) List(ctx context.Context, filter ListFilter, page, pageSize
 	if filter.AuthorID != nil {
 		query = query.Where("author_id = ?", *filter.AuthorID)
 	}
+	if filter.Status != nil {
+		query = query.Where("status = ?", *filter.Status)
+	}
 
 	var total int64
 	if err := query.Count(&total).Error; err != nil {

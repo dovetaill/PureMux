@@ -30,6 +30,7 @@ func (Article) TableName() string {
 
 type ListFilter struct {
 	AuthorID *uint
+	Status   *string
 }
 
 func init() {
