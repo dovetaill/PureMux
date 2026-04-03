@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -15,6 +16,17 @@ import (
 	"github.com/dovetaill/PureMux/internal/api/response"
 	postmodule "github.com/dovetaill/PureMux/internal/modules/post"
 )
+
+func TestPostModelUsesPortableContentColumnType(t *testing.T) {
+	field, ok := reflect.TypeOf(postmodule.Post{}).FieldByName("Content")
+	if !ok {
+		t.Fatal("Content field not found")
+	}
+
+	if got := field.Tag.Get("gorm"); strings.Contains(got, "longtext") {
+		t.Fatalf("gorm tag = %q, must avoid postgres-incompatible longtext", got)
+	}
+}
 
 type postRepoStub struct {
 	nextID uint
