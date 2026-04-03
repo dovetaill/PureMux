@@ -67,3 +67,53 @@ go build ./...
 - `migrations/` 目录仅建立基线，尚未添加真实 migration SQL
 - Asynq / cron / migrate 仍缺少真实外部依赖 smoke test
 - 示例模块文档已建立，但尚未填充真实业务 handler / service / repository 实现
+
+---
+
+# Stage 3 Verification
+
+- 日期：2026-04-03
+- 执行者：Codex
+- 范围：后台多用户文稿发布系统首版 + 文档更新
+
+## 执行命令
+
+```bash
+go test ./... -v
+go mod tidy
+go fmt ./...
+go vet ./...
+go build ./...
+```
+
+## 结果摘要
+
+- `internal/modules/auth`：登录、JWT 解析、当前用户上下文测试通过
+- `internal/modules/user`：管理员用户 CRUD 与分页列表测试通过
+- `internal/modules/category`：管理员分类 CRUD 与分页列表测试通过
+- `internal/modules/article`：ownership、CRUD、发布/取消发布测试通过
+- `internal/api/register`：最终业务路由装配测试通过
+- `internal/api/response`：统一分页 envelope 测试通过
+- `go test ./... -v`：全量通过
+- `go mod tidy`：通过
+- `go fmt ./...`：通过
+- `go vet ./...`：通过
+- `go build ./...`：通过
+
+## 当前已验证的业务闭环
+
+- 默认管理员 seed 可用
+- 管理员可登录并获取 JWT
+- JWT 可解析当前用户并进入受保护路由
+- 管理员可管理用户与分类
+- 普通用户只能管理自己的文稿
+- 管理员可管理任意文稿
+- 列表接口统一返回分页结构
+
+## Remaining Deferred Items
+
+- `cmd/migrate` 仍未接入真实 migration SQL 执行链路
+- `migrations/` 目录尚未沉淀真实业务 migration SQL
+- refresh token 尚未实现
+- 审计日志、文稿版本历史、审核流尚未实现
+- MySQL / PostgreSQL / Redis 外部依赖 smoke test 尚未补齐
