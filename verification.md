@@ -117,3 +117,46 @@ go build ./...
 - refresh token 尚未实现
 - 审计日志、文稿版本历史、审核流尚未实现
 - MySQL / PostgreSQL / Redis 外部依赖 smoke test 尚未补齐
+
+---
+
+# Stage 4 Verification
+
+- 日期：2026-04-03
+- 执行者：Codex
+- 范围：multi-surface API architecture（public / member auth / member self / admin）
+
+## Verification Checklist
+
+- [x] admin / public / member auth / member self 四个 surface 已落地
+- [x] `internal/api/register/router.go` 只做 wiring + Huma groups，没有 path-prefix authorization drift
+- [x] `internal/modules/article` 已按 surface 拆成 `public_handler.go` / `admin_handler.go`
+- [x] `internal/modules/category` 已按 surface 拆成 `public_handler.go` / `admin_handler.go`
+- [x] `internal/modules/member` 已落地 register / login / self profile
+- [x] `internal/modules/engagement` 已落地点赞 / 收藏 / 我的收藏
+- [x] 文档已补充 module map 与 extension rules
+
+## 执行命令
+
+```bash
+go test ./internal/api/register ./internal/middleware ./internal/modules/article ./internal/modules/category ./internal/modules/member ./internal/modules/engagement -v
+go test ./...
+```
+
+## 结果摘要
+
+- `internal/api/register`：surface 路由装配、OpenAPI 注册、member/admin 保护测试通过
+- `internal/middleware`：admin principal / member principal 鉴权与守卫测试通过
+- `internal/modules/article`：public/admin 双面文稿路由测试通过
+- `internal/modules/category`：public/admin 双面分类路由测试通过
+- `internal/modules/member`：注册、登录、自己的资料测试通过
+- `internal/modules/engagement`：点赞、收藏、匿名拒绝、我的收藏测试通过
+- `go test ./...`：全量通过
+
+## Remaining Deferred Items
+
+- member `refresh token` 尚未实现
+- 互动计数聚合、收藏详情 join、浏览历史尚未实现
+- 审计日志、文稿版本历史、审核流尚未实现
+- `cmd/migrate` 仍未接入真实 migration SQL 执行链路
+- MySQL / PostgreSQL / Redis 外部依赖 smoke test 尚未补齐

@@ -1,22 +1,21 @@
 # PureMux
 
-PureMux 现在已经不是一个只有 runtime skeleton 的空壳，它已经落地了一套可运行的后台多用户文稿发布系统，并继续保留原有的 worker / scheduler / migrate 脚手架能力。
+PureMux 现在已经落地了一套可运行的多 surface API 架构：在保留 `server` / `worker` / `scheduler` / `migrate` 脚手架能力的同时，把业务 API 明确拆成 `public`、`member auth`、`member self`、`admin` 四个 surface。
 
-当前业务首版已经具备：
+当前架构切片已经具备：
 
-- 用户名密码登录
-- JWT 鉴权与当前用户上下文注入
-- 默认管理员 seed
+- 后台管理员登录与当前身份读取
 - 管理员用户管理
-- 管理员文稿分类管理
-- 多用户文稿 CRUD
-- 基于角色与 ownership 的权限控制
-- 文稿发布 / 取消发布
-- OpenAPI 文档与 Huma 路由注册
+- 管理员分类管理
+- 管理员文稿管理与发布 / 取消发布
+- 前台公开分类 / 已发布文稿读取
+- 前台会员注册 / 登录 / 自己的资料
+- 前台会员点赞 / 收藏 / 我的收藏
+- 统一 JWT 鉴权、principal 注入、Huma OpenAPI 注册
 
 ## 当前能力概览
 
-### 业务能力
+### Admin API
 
 - `POST /api/v1/auth/login`
 - `GET /api/v1/auth/me`
@@ -30,13 +29,33 @@ PureMux 现在已经不是一个只有 runtime skeleton 的空壳，它已经落
 - `GET /api/v1/admin/categories/{id}`
 - `PATCH /api/v1/admin/categories/{id}`
 - `DELETE /api/v1/admin/categories/{id}`
-- `POST /api/v1/articles`
+- `POST /api/v1/admin/articles`
+- `GET /api/v1/admin/articles`
+- `GET /api/v1/admin/articles/{id}`
+- `PATCH /api/v1/admin/articles/{id}`
+- `DELETE /api/v1/admin/articles/{id}`
+- `POST /api/v1/admin/articles/{id}/publish`
+- `POST /api/v1/admin/articles/{id}/unpublish`
+
+### Public API
+
 - `GET /api/v1/articles`
-- `GET /api/v1/articles/{id}`
-- `PATCH /api/v1/articles/{id}`
-- `DELETE /api/v1/articles/{id}`
-- `POST /api/v1/articles/{id}/publish`
-- `POST /api/v1/articles/{id}/unpublish`
+- `GET /api/v1/articles/{slug}`
+- `GET /api/v1/categories`
+
+### Member Auth API
+
+- `POST /api/v1/member/auth/register`
+- `POST /api/v1/member/auth/login`
+
+### Member Self API
+
+- `GET /api/v1/me`
+- `GET /api/v1/me/favorites`
+- `POST /api/v1/articles/{id}/likes`
+- `DELETE /api/v1/articles/{id}/likes`
+- `POST /api/v1/articles/{id}/favorites`
+- `DELETE /api/v1/articles/{id}/favorites`
 
 ### 基础设施能力
 
@@ -49,23 +68,53 @@ PureMux 现在已经不是一个只有 runtime skeleton 的空壳，它已经落
 - migrate command skeleton
 - `slog` 结构化日志
 
-## 角色与权限规则
+## Principal 与权限规则
 
-系统当前只有两种角色：
+系统当前围绕三类 principal 运转：
 
+- `anonymous`
+  - 可以访问 `public` surface
 - `admin`
-  - 可以管理所有用户
-  - 可以管理所有分类
-  - 可以查看、修改、删除、发布任意文稿
-- `user`
-  - 不能访问 `/api/v1/admin/*`
-  - 只能查看、修改、删除、发布自己创建的文稿
+  - 可以访问全部 `admin` surface
+  - 可以管理后台用户、分类、文稿
+- `member`
+  - 可以访问 `member auth` 登录后的 `member self` / `engagement` 能力
+  - 不可访问 `/api/v1/admin/*`
 
-ownership 规则现在只作用在文稿资源：
+权限规则统一为：
 
-- 管理员可操作全部文稿
-- 普通用户只能操作自己的文稿
-- JWT 合法但用户状态为 `disabled` 时，也会被拒绝访问受保护接口
+- `public` 路由允许匿名访问
+- `admin` 路由只允许 `admin` principal
+- `member self` 与互动路由只允许 `member` principal
+- JWT 合法但账号状态为 `disabled` 时，受保护路由会拒绝访问
+- 文稿业务规则仍留在 `article/service.go`，但 public surface 不再承载 ownership 决策
+
+## 模块地图
+
+当前业务模块与公共拼装点如下：
+
+- `internal/modules/auth`
+  - 后台管理员登录
+  - 后台当前身份读取
+- `internal/modules/user`
+  - 后台管理员用户 CRUD
+- `internal/modules/member`
+  - 前台会员注册 / 登录 / 自己的资料
+- `internal/modules/category`
+  - `public_handler.go` 负责公开分类读取
+  - `admin_handler.go` 负责后台分类管理
+- `internal/modules/article`
+  - `public_handler.go` 负责公开文章列表 / slug 详情
+  - `admin_handler.go` 负责后台文稿管理与发布流转
+- `internal/modules/engagement`
+  - 点赞、收藏、取消操作
+  - 我的收藏列表
+- `internal/identity`
+  - token / password / principal 公共能力
+- `internal/middleware`
+  - `Authenticate`、`RequireAdmin`、`RequireMember`
+- `internal/api/register/router.go`
+  - 只做依赖装配与 route groups wiring
 
 ## 统一响应结构
 
@@ -199,110 +248,33 @@ go run ./cmd/migrate -config configs/config.yaml
 
 ## 使用教程
 
-下面用一个“管理员创建用户与分类，普通用户发布文稿”的完整流程说明如何使用当前系统。
+下面用一个“admin 管理内容、member 使用前台能力、anonymous 读取公开内容”的流程说明当前系统。
 
 ### Step 1. 管理员登录
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{
+curl -X POST http://127.0.0.1:8080/api/v1/auth/login   -H 'Content-Type: application/json'   -d '{
     "username": "admin",
     "password": "admin123456"
   }'
 ```
 
-返回示例：
+### Step 2. 管理员创建分类与文稿
 
-```json
-{
-  "code": 0,
-  "message": "login success",
-  "data": {
-    "token": "<jwt>",
-    "expires_at": "2026-04-03T10:00:00+08:00",
-    "user": {
-      "id": 1,
-      "username": "admin",
-      "role": "admin",
-      "status": "active"
-    }
-  }
-}
-```
-
-后续请求统一带：
-
-```text
-Authorization: Bearer <jwt>
-```
-
-### Step 2. 查看当前登录用户
+创建分类：
 
 ```bash
-curl http://127.0.0.1:8080/api/v1/auth/me \
-  -H 'Authorization: Bearer <admin-jwt>'
-```
-
-### Step 3. 管理员创建普通用户
-
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/admin/users \
-  -H 'Authorization: Bearer <admin-jwt>' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "username": "editor01",
-    "password": "editor123456",
-    "role": "user",
-    "status": "active"
-  }'
-```
-
-查看用户列表：
-
-```bash
-curl 'http://127.0.0.1:8080/api/v1/admin/users?page=1&page_size=20' \
-  -H 'Authorization: Bearer <admin-jwt>'
-```
-
-### Step 4. 管理员创建文稿分类
-
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/admin/categories \
-  -H 'Authorization: Bearer <admin-jwt>' \
-  -H 'Content-Type: application/json' \
-  -d '{
+curl -X POST http://127.0.0.1:8080/api/v1/admin/categories   -H 'Authorization: Bearer <admin-jwt>'   -H 'Content-Type: application/json'   -d '{
     "name": "公告",
     "slug": "notice",
     "description": "站内公告分类"
   }'
 ```
 
-查看分类列表：
+创建文稿：
 
 ```bash
-curl 'http://127.0.0.1:8080/api/v1/admin/categories?page=1&page_size=20' \
-  -H 'Authorization: Bearer <admin-jwt>'
-```
-
-### Step 5. 普通用户登录
-
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "username": "editor01",
-    "password": "editor123456"
-  }'
-```
-
-### Step 6. 普通用户创建自己的文稿
-
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/articles \
-  -H 'Authorization: Bearer <user-jwt>' \
-  -H 'Content-Type: application/json' \
-  -d '{
+curl -X POST http://127.0.0.1:8080/api/v1/admin/articles   -H 'Authorization: Bearer <admin-jwt>'   -H 'Content-Type: application/json'   -d '{
     "title": "首篇站点公告",
     "summary": "这是一个简短摘要",
     "content": "这里是正文内容",
@@ -310,45 +282,76 @@ curl -X POST http://127.0.0.1:8080/api/v1/articles \
   }'
 ```
 
-查看自己的文稿列表：
+发布文稿：
 
 ```bash
-curl 'http://127.0.0.1:8080/api/v1/articles?page=1&page_size=20' \
-  -H 'Authorization: Bearer <user-jwt>'
+curl -X POST http://127.0.0.1:8080/api/v1/admin/articles/1/publish   -H 'Authorization: Bearer <admin-jwt>'
 ```
 
-普通用户在这个列表里只能看到自己创建的文稿。
+### Step 3. 前台会员注册并登录
 
-### Step 7. 普通用户发布自己的文稿
-
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/articles/1/publish \
-  -H 'Authorization: Bearer <user-jwt>'
-```
-
-取消发布：
+注册：
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/articles/1/unpublish \
-  -H 'Authorization: Bearer <user-jwt>'
-```
-
-### Step 8. 管理员管理任意文稿
-
-管理员可以直接查看或修改任意用户的文稿：
-
-```bash
-curl http://127.0.0.1:8080/api/v1/articles/1 \
-  -H 'Authorization: Bearer <admin-jwt>'
-```
-
-```bash
-curl -X PATCH http://127.0.0.1:8080/api/v1/articles/1 \
-  -H 'Authorization: Bearer <admin-jwt>' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "title": "管理员修订后的标题"
+curl -X POST http://127.0.0.1:8080/api/v1/member/auth/register   -H 'Content-Type: application/json'   -d '{
+    "username": "alice",
+    "password": "alice123456"
   }'
+```
+
+登录：
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/member/auth/login   -H 'Content-Type: application/json'   -d '{
+    "username": "alice",
+    "password": "alice123456"
+  }'
+```
+
+查看自己的资料：
+
+```bash
+curl http://127.0.0.1:8080/api/v1/me   -H 'Authorization: Bearer <member-jwt>'
+```
+
+### Step 4. 匿名访问公开内容
+
+读取公开文章列表：
+
+```bash
+curl 'http://127.0.0.1:8080/api/v1/articles?page=1&page_size=20'
+```
+
+按 slug 读取公开文章详情：
+
+```bash
+curl http://127.0.0.1:8080/api/v1/articles/first-post
+```
+
+读取公开分类列表：
+
+```bash
+curl 'http://127.0.0.1:8080/api/v1/categories?page=1&page_size=20'
+```
+
+### Step 5. 会员点赞、收藏与查看自己的收藏
+
+点赞：
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/articles/1/likes   -H 'Authorization: Bearer <member-jwt>'
+```
+
+收藏：
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/articles/1/favorites   -H 'Authorization: Bearer <member-jwt>'
+```
+
+查看我的收藏：
+
+```bash
+curl 'http://127.0.0.1:8080/api/v1/me/favorites?page=1&page_size=20'   -H 'Authorization: Bearer <member-jwt>'
 ```
 
 ## 当前模块映射
@@ -356,46 +359,55 @@ curl -X PATCH http://127.0.0.1:8080/api/v1/articles/1 \
 如果你之前是按 `handler / service / repository` 抽象来理解 PureMux，现在可以直接对照真实业务模块：
 
 - 鉴权模块：`internal/modules/auth`
-  - 登录
-  - JWT 签发 / 解析
-  - 当前用户上下文
-- 用户管理模块：`internal/modules/user`
+  - 后台管理员登录
+  - 后台当前身份读取
+- 管理员用户模块：`internal/modules/user`
   - 管理员用户 CRUD
   - 用户列表分页
-- 分类管理模块：`internal/modules/category`
-  - 管理员分类 CRUD
-  - 分类列表分页
+- 前台会员模块：`internal/modules/member`
+  - 会员注册 / 登录
+  - 自己的资料
+- 分类模块：`internal/modules/category`
+  - `public_handler.go`：公开分类列表
+  - `admin_handler.go`：后台分类管理
 - 文稿模块：`internal/modules/article`
-  - 文稿 CRUD
-  - ownership 控制
-  - 发布 / 取消发布
+  - `public_handler.go`：公开文章列表 / slug 详情
+  - `admin_handler.go`：后台文稿管理与发布
+- 互动模块：`internal/modules/engagement`
+  - 点赞 / 取消点赞
+  - 收藏 / 取消收藏
+  - 我的收藏
 - 中间件：`internal/middleware`
   - `Authenticate`
   - `RequireAuthenticated`
   - `RequireAdmin`
+  - `RequireMember`
 - 统一依赖装配：`internal/api/register/router.go`
 - 统一响应：`internal/api/response/response.go`
 
 ## 业务 Demo：代码应该怎么扩展
 
-当前仓库已经把“示例分层”真正落到了真实模块里。你要继续加新业务时，建议直接参照现有模块，不要重新发明一套目录规范。
+当前仓库已经把“示例分层”真正落到了真实模块里。你要继续加新业务时，建议先决定 surface，再决定模块边界，而不是把所有路由继续混回一个 handler。
 
 ### 推荐扩展顺序
 
-1. 在 `internal/modules/<module>` 下定义 `model.go`
-2. 在 `repository.go` 写数据库访问
-3. 在 `service.go` 写业务规则与权限判断
-4. 在 `handler.go` 暴露 Huma 路由
-5. 在 `internal/api/register/router.go` 装配依赖并注册路由
-6. 如有异步逻辑，再接入 `internal/queue`
-7. 如有周期任务，再由 `internal/scheduler` 负责 enqueue
+1. 先判断这是 `public`、`member auth`、`member self` 还是 `admin` 能力
+2. 在 `internal/modules/<module>` 下定义 `model.go`
+3. 在 `repository.go` 写数据访问，不做权限决策
+4. 在 `service.go` 写业务规则、状态流转与授权判断
+5. 如有双 contract，优先拆成 `public_handler.go` / `admin_handler.go`
+6. 把路由 ownership 留在模块 handler，不把业务路径规则塞回 `router.go`
+7. 在 `internal/api/register/router.go` 只做依赖装配与 group 注册
+8. 如有异步逻辑，再接入 `internal/queue`
+9. 如有周期任务，再由 `internal/scheduler` 负责 enqueue
 
 ### 可以直接参考的真实实现
 
-- 登录与 Bearer JWT：`internal/modules/auth`
-- 管理员 CRUD：`internal/modules/user`、`internal/modules/category`
-- ownership 业务判断：`internal/modules/article/service.go`
-- 统一分页 envelope：`internal/api/response/response.go`
+- 后台管理员登录：`internal/modules/auth`
+- 会员注册 / 登录 / 自己：`internal/modules/member`
+- public/admin 双面拆分：`internal/modules/category`、`internal/modules/article`
+- member 互动能力：`internal/modules/engagement`
+- principal / token / password 公共层：`internal/identity`
 - 最终路由装配：`internal/api/register/router.go`
 
 ## 运行时入口分别做什么
