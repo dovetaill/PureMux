@@ -11,6 +11,7 @@ import (
 	"github.com/dovetaill/PureMux/internal/api/handlers"
 	"github.com/dovetaill/PureMux/internal/app/bootstrap"
 	"github.com/dovetaill/PureMux/internal/middleware"
+	articlemodule "github.com/dovetaill/PureMux/internal/modules/article"
 	"github.com/dovetaill/PureMux/internal/modules/auth"
 	categorymodule "github.com/dovetaill/PureMux/internal/modules/category"
 	usermodule "github.com/dovetaill/PureMux/internal/modules/user"
@@ -43,10 +44,15 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 		if categoryService := newCategoryService(rt); categoryService != nil {
 			categorymodule.RegisterRoutes(api, categoryService)
 		}
+		if articleService := newArticleService(rt); articleService != nil {
+			articlemodule.RegisterRoutes(api, articleService)
+		}
 
 		rootMux := http.NewServeMux()
 		rootMux.Handle("/api/v1/auth/me", middleware.RequireAuthenticated()(apiMux))
 		rootMux.Handle("/api/v1/admin/", middleware.RequireAdmin()(middleware.RequireAuthenticated()(apiMux)))
+		rootMux.Handle("/api/v1/articles", middleware.RequireAuthenticated()(apiMux))
+		rootMux.Handle("/api/v1/articles/", middleware.RequireAuthenticated()(apiMux))
 		rootMux.Handle("/", apiMux)
 		handler = middleware.Authenticate(authService)(rootMux)
 	}
@@ -99,6 +105,14 @@ func newCategoryService(rt *bootstrap.Runtime) *categorymodule.Service {
 	}
 	repo := categorymodule.NewRepository(rt.Resources.MySQL)
 	return categorymodule.NewService(repo)
+}
+
+func newArticleService(rt *bootstrap.Runtime) *articlemodule.Service {
+	if rt == nil || rt.Resources == nil || rt.Resources.MySQL == nil {
+		return nil
+	}
+	repo := articlemodule.NewRepository(rt.Resources.MySQL)
+	return articlemodule.NewService(repo)
 }
 
 func nilLogger(rt *bootstrap.Runtime) *slog.Logger {
