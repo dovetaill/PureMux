@@ -50,13 +50,15 @@ func TestRouterRegistersAuthAndBusinessRoutes(t *testing.T) {
 	assertOperation(t, doc.Paths, "/api/v1/admin/categories/{id}", http.MethodGet)
 	assertOperation(t, doc.Paths, "/api/v1/admin/categories/{id}", http.MethodPatch)
 	assertOperation(t, doc.Paths, "/api/v1/admin/categories/{id}", http.MethodDelete)
-	assertOperation(t, doc.Paths, "/api/v1/articles", http.MethodPost)
 	assertOperation(t, doc.Paths, "/api/v1/articles", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/articles/{id}", http.MethodGet)
-	assertOperation(t, doc.Paths, "/api/v1/articles/{id}", http.MethodPatch)
-	assertOperation(t, doc.Paths, "/api/v1/articles/{id}", http.MethodDelete)
-	assertOperation(t, doc.Paths, "/api/v1/articles/{id}/publish", http.MethodPost)
-	assertOperation(t, doc.Paths, "/api/v1/articles/{id}/unpublish", http.MethodPost)
+	assertOperation(t, doc.Paths, "/api/v1/articles/{slug}", http.MethodGet)
+	assertOperation(t, doc.Paths, "/api/v1/admin/articles", http.MethodPost)
+	assertOperation(t, doc.Paths, "/api/v1/admin/articles", http.MethodGet)
+	assertOperation(t, doc.Paths, "/api/v1/admin/articles/{id}", http.MethodGet)
+	assertOperation(t, doc.Paths, "/api/v1/admin/articles/{id}", http.MethodPatch)
+	assertOperation(t, doc.Paths, "/api/v1/admin/articles/{id}", http.MethodDelete)
+	assertOperation(t, doc.Paths, "/api/v1/admin/articles/{id}/publish", http.MethodPost)
+	assertOperation(t, doc.Paths, "/api/v1/admin/articles/{id}/unpublish", http.MethodPost)
 }
 
 func TestPublicArticleRoutesAreAccessibleWithoutAuth(t *testing.T) {

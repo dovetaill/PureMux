@@ -14,6 +14,7 @@ const (
 type Article struct {
 	ID          uint       `gorm:"primaryKey" json:"id"`
 	Title       string     `gorm:"size:255;not null" json:"title"`
+	Slug        string     `gorm:"size:255;not null;uniqueIndex" json:"slug"`
 	Summary     string     `gorm:"type:text" json:"summary"`
 	Content     string     `gorm:"type:longtext;not null" json:"content"`
 	Status      string     `gorm:"size:16;not null;index" json:"status"`

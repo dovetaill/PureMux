@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 
 	authmodule "github.com/dovetaill/PureMux/internal/modules/auth"
 )
@@ -20,6 +21,7 @@ type repository interface {
 	Create(ctx context.Context, item *Article) error
 	List(ctx context.Context, filter ListFilter, page, pageSize int) ([]Article, int64, error)
 	FindByID(ctx context.Context, id uint) (*Article, error)
+	FindBySlug(ctx context.Context, slug string) (*Article, error)
 	Update(ctx context.Context, item *Article) error
 	Delete(ctx context.Context, id uint) error
 }
@@ -68,11 +70,15 @@ func (s *Service) Create(ctx context.Context, actor authmodule.CurrentUser, inpu
 
 	item := &Article{
 		Title:      title,
+		Slug:       normalizeSlug(title),
 		Summary:    strings.TrimSpace(input.Summary),
 		Content:    content,
 		Status:     StatusDraft,
 		AuthorID:   actor.ID,
 		CategoryID: input.CategoryID,
+	}
+	if item.Slug == "" {
+		return nil, ErrInvalidArticleInput
 	}
 	if err := s.repo.Create(ctx, item); err != nil {
 		return nil, err
@@ -120,6 +126,20 @@ func (s *Service) Get(ctx context.Context, actor authmodule.CurrentUser, id uint
 	return item, nil
 }
 
+func (s *Service) GetPublicBySlug(ctx context.Context, slug string) (*Article, error) {
+	if s == nil || s.repo == nil {
+		return nil, ErrInvalidArticleInput
+	}
+	item, err := s.repo.FindBySlug(ctx, normalizeSlug(slug))
+	if err != nil {
+		return nil, err
+	}
+	if item.Status != StatusPublished {
+		return nil, ErrArticleNotFound
+	}
+	return item, nil
+}
+
 func (s *Service) Update(ctx context.Context, actor authmodule.CurrentUser, input UpdateInput) (*Article, error) {
 	if input.ID == 0 {
 		return nil, ErrInvalidArticleInput
@@ -131,6 +151,7 @@ func (s *Service) Update(ctx context.Context, actor authmodule.CurrentUser, inpu
 
 	if title := strings.TrimSpace(input.Title); title != "" {
 		item.Title = title
+		item.Slug = normalizeSlug(title)
 	}
 	if input.Summary != nil {
 		item.Summary = strings.TrimSpace(*input.Summary)
@@ -148,7 +169,7 @@ func (s *Service) Update(ctx context.Context, actor authmodule.CurrentUser, inpu
 		}
 		item.CategoryID = *input.CategoryID
 	}
-	if strings.TrimSpace(item.Title) == "" || strings.TrimSpace(item.Content) == "" || item.CategoryID == 0 {
+	if strings.TrimSpace(item.Title) == "" || normalizeSlug(item.Slug) == "" || strings.TrimSpace(item.Content) == "" || item.CategoryID == 0 {
 		return nil, ErrInvalidArticleInput
 	}
 
@@ -241,4 +262,35 @@ func normalizePage(page, pageSize int) (int, int) {
 		pageSize = 100
 	}
 	return page, pageSize
+}
+
+func normalizeSlug(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+
+	var builder strings.Builder
+	lastHyphen := false
+	for _, r := range value {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			builder.WriteRune(r)
+			lastHyphen = false
+		case unicode.IsSpace(r) || r == '-' || r == '_':
+			if builder.Len() == 0 || lastHyphen {
+				continue
+			}
+			builder.WriteByte('-')
+			lastHyphen = true
+		default:
+			if builder.Len() == 0 || lastHyphen {
+				continue
+			}
+			builder.WriteByte('-')
+			lastHyphen = true
+		}
+	}
+
+	return strings.Trim(builder.String(), "-")
 }

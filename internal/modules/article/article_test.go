@@ -103,6 +103,9 @@ func (s *articleRepoStub) List(ctx context.Context, filter articlemodule.ListFil
 		if filter.AuthorID != nil && item.AuthorID != *filter.AuthorID {
 			continue
 		}
+		if filter.Status != nil && item.Status != *filter.Status {
+			continue
+		}
 		items = append(items, *item)
 	}
 	return items, int64(len(items)), nil
@@ -115,6 +118,17 @@ func (s *articleRepoStub) FindByID(ctx context.Context, id uint) (*articlemodule
 	}
 	clone := *item
 	return &clone, nil
+}
+
+func (s *articleRepoStub) FindBySlug(ctx context.Context, slug string) (*articlemodule.Article, error) {
+	for _, item := range s.items {
+		if item.Slug != slug {
+			continue
+		}
+		clone := *item
+		return &clone, nil
+	}
+	return nil, articlemodule.ErrArticleNotFound
 }
 
 func (s *articleRepoStub) Update(ctx context.Context, item *articlemodule.Article) error {
@@ -136,10 +150,10 @@ func (s *articleRepoStub) Delete(ctx context.Context, id uint) error {
 	return nil
 }
 
-func TestUserCanCreateOwnArticle(t *testing.T) {
-	handler := newArticleHandler(t, 7, authmodule.RoleUser)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/articles", strings.NewReader(`{"title":"First Post","summary":"intro","content":"hello","category_id":2}`))
-	req.Header.Set("Authorization", "Bearer "+mustActorToken(t, 7, authmodule.RoleUser))
+func TestAdminCanCreateDraftArticle(t *testing.T) {
+	handler := newArticleHandler(t, 1, authmodule.RoleAdmin)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/articles", strings.NewReader(`{"title":"First Post","summary":"intro","content":"hello","category_id":2}`))
+	req.Header.Set("Authorization", "Bearer "+mustActorToken(t, 1, authmodule.RoleAdmin))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -151,21 +165,52 @@ func TestUserCanCreateOwnArticle(t *testing.T) {
 
 	got := decodeEnvelope(t, rec)
 	data := envelopeData(t, got)
-	if data["author_id"] != float64(7) {
-		t.Fatalf("author_id = %v, want %d", data["author_id"], 7)
+	if data["author_id"] != float64(1) {
+		t.Fatalf("author_id = %v, want %d", data["author_id"], 1)
 	}
 	if data["status"] != articlemodule.StatusDraft {
 		t.Fatalf("status = %v, want %q", data["status"], articlemodule.StatusDraft)
 	}
+	if data["slug"] != "first-post" {
+		t.Fatalf("slug = %v, want %q", data["slug"], "first-post")
+	}
 }
 
-func TestUserCanOnlyListOwnArticles(t *testing.T) {
-	handler := newArticleHandler(t, 7, authmodule.RoleUser,
-		&articlemodule.Article{ID: 1, Title: "Mine", Status: articlemodule.StatusDraft, AuthorID: 7, CategoryID: 2},
-		&articlemodule.Article{ID: 2, Title: "Others", Status: articlemodule.StatusDraft, AuthorID: 8, CategoryID: 3},
+func TestAdminCanListDraftAndPublishedArticles(t *testing.T) {
+	handler := newArticleHandler(t, 1, authmodule.RoleAdmin,
+		&articlemodule.Article{ID: 1, Title: "Draft", Slug: "draft", Status: articlemodule.StatusDraft, AuthorID: 7, CategoryID: 2},
+		&articlemodule.Article{ID: 2, Title: "Published", Slug: "published", Status: articlemodule.StatusPublished, AuthorID: 8, CategoryID: 3},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/articles?page=1&page_size=20", nil)
+	req.Header.Set("Authorization", "Bearer "+mustActorToken(t, 1, authmodule.RoleAdmin))
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	got := decodeEnvelope(t, rec)
+	data := envelopeData(t, got)
+	if int(data["total"].(float64)) != 2 {
+		t.Fatalf("total = %v, want %d", data["total"], 2)
+	}
+	items, ok := data["items"].([]any)
+	if !ok {
+		t.Fatalf("items type = %T, want []any", data["items"])
+	}
+	if len(items) != 2 {
+		t.Fatalf("items len = %d, want %d", len(items), 2)
+	}
+}
+
+func TestPublicArticleListOnlyReturnsPublishedItems(t *testing.T) {
+	handler := newArticleHandler(t, 1, authmodule.RoleAdmin,
+		&articlemodule.Article{ID: 1, Title: "Draft", Slug: "draft", Status: articlemodule.StatusDraft, AuthorID: 7, CategoryID: 2},
+		&articlemodule.Article{ID: 2, Title: "Published", Slug: "published", Status: articlemodule.StatusPublished, AuthorID: 8, CategoryID: 2},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/articles?page=1&page_size=20", nil)
-	req.Header.Set("Authorization", "Bearer "+mustActorToken(t, 7, authmodule.RoleUser))
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -190,16 +235,69 @@ func TestUserCanOnlyListOwnArticles(t *testing.T) {
 	if !ok {
 		t.Fatalf("first item type = %T, want map[string]any", items[0])
 	}
-	if first["author_id"] != float64(7) {
-		t.Fatalf("author_id = %v, want %d", first["author_id"], 7)
+	if first["title"] != "Published" {
+		t.Fatalf("title = %v, want %q", first["title"], "Published")
 	}
 }
 
-func TestUserCannotUpdateOtherUsersArticle(t *testing.T) {
-	handler := newArticleHandler(t, 7, authmodule.RoleUser,
-		&articlemodule.Article{ID: 1, Title: "Others", Status: articlemodule.StatusDraft, AuthorID: 8, CategoryID: 3},
+func TestPublicArticleDetailLoadsBySlug(t *testing.T) {
+	handler := newArticleHandler(t, 1, authmodule.RoleAdmin,
+		&articlemodule.Article{ID: 2, Title: "Published", Slug: "published", Status: articlemodule.StatusPublished, AuthorID: 8, CategoryID: 2},
 	)
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/articles/1", strings.NewReader(`{"title":"takeover"}`))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/articles/published", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	got := decodeEnvelope(t, rec)
+	data := envelopeData(t, got)
+	if data["title"] != "Published" {
+		t.Fatalf("title = %v, want %q", data["title"], "Published")
+	}
+	if data["slug"] != "published" {
+		t.Fatalf("slug = %v, want %q", data["slug"], "published")
+	}
+}
+
+func TestAdminArticleRoutesPreserveDraftManagement(t *testing.T) {
+	handler := newArticleHandler(t, 1, authmodule.RoleAdmin,
+		&articlemodule.Article{ID: 1, Title: "Draft", Slug: "draft", Status: articlemodule.StatusDraft, AuthorID: 8, CategoryID: 2},
+	)
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/admin/articles?page=1&page_size=20", nil)
+	listReq.Header.Set("Authorization", "Bearer "+mustActorToken(t, 1, authmodule.RoleAdmin))
+	listRec := httptest.NewRecorder()
+	handler.ServeHTTP(listRec, listReq)
+
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want %d", listRec.Code, http.StatusOK)
+	}
+
+	publishReq := httptest.NewRequest(http.MethodPost, "/api/v1/admin/articles/1/publish", nil)
+	publishReq.Header.Set("Authorization", "Bearer "+mustActorToken(t, 1, authmodule.RoleAdmin))
+	publishRec := httptest.NewRecorder()
+	handler.ServeHTTP(publishRec, publishReq)
+
+	if publishRec.Code != http.StatusOK {
+		t.Fatalf("publish status = %d, want %d", publishRec.Code, http.StatusOK)
+	}
+
+	published := decodeEnvelope(t, publishRec)
+	publishedData := envelopeData(t, published)
+	if publishedData["status"] != articlemodule.StatusPublished {
+		t.Fatalf("status = %v, want %q", publishedData["status"], articlemodule.StatusPublished)
+	}
+}
+
+func TestNonAdminCannotManageAdminArticleRoutes(t *testing.T) {
+	handler := newArticleHandler(t, 7, authmodule.RoleUser,
+		&articlemodule.Article{ID: 1, Title: "Others", Slug: "others", Status: articlemodule.StatusDraft, AuthorID: 8, CategoryID: 3},
+	)
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/articles/1", strings.NewReader(`{"title":"takeover"}`))
 	req.Header.Set("Authorization", "Bearer "+mustActorToken(t, 7, authmodule.RoleUser))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -218,9 +316,9 @@ func TestUserCannotUpdateOtherUsersArticle(t *testing.T) {
 
 func TestAdminCanManageAnyArticle(t *testing.T) {
 	handler := newArticleHandler(t, 1, authmodule.RoleAdmin,
-		&articlemodule.Article{ID: 1, Title: "Others", Content: "body", Status: articlemodule.StatusDraft, AuthorID: 8, CategoryID: 3},
+		&articlemodule.Article{ID: 1, Title: "Others", Slug: "others", Content: "body", Status: articlemodule.StatusDraft, AuthorID: 8, CategoryID: 3},
 	)
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/articles/1", strings.NewReader(`{"title":"editorial review"}`))
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/articles/1", strings.NewReader(`{"title":"editorial review"}`))
 	req.Header.Set("Authorization", "Bearer "+mustActorToken(t, 1, authmodule.RoleAdmin))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -236,15 +334,18 @@ func TestAdminCanManageAnyArticle(t *testing.T) {
 	if data["title"] != "editorial review" {
 		t.Fatalf("title = %v, want %q", data["title"], "editorial review")
 	}
+	if data["slug"] != "editorial-review" {
+		t.Fatalf("slug = %v, want %q", data["slug"], "editorial-review")
+	}
 }
 
-func TestPublishAndUnpublishTransitionsStatus(t *testing.T) {
-	handler := newArticleHandler(t, 7, authmodule.RoleUser,
-		&articlemodule.Article{ID: 1, Title: "Mine", Status: articlemodule.StatusDraft, AuthorID: 7, CategoryID: 2},
+func TestAdminPublishAndUnpublishTransitionsStatus(t *testing.T) {
+	handler := newArticleHandler(t, 1, authmodule.RoleAdmin,
+		&articlemodule.Article{ID: 1, Title: "Mine", Slug: "mine", Status: articlemodule.StatusDraft, AuthorID: 7, CategoryID: 2},
 	)
 
-	publishReq := httptest.NewRequest(http.MethodPost, "/api/v1/articles/1/publish", nil)
-	publishReq.Header.Set("Authorization", "Bearer "+mustActorToken(t, 7, authmodule.RoleUser))
+	publishReq := httptest.NewRequest(http.MethodPost, "/api/v1/admin/articles/1/publish", nil)
+	publishReq.Header.Set("Authorization", "Bearer "+mustActorToken(t, 1, authmodule.RoleAdmin))
 	publishRec := httptest.NewRecorder()
 	handler.ServeHTTP(publishRec, publishReq)
 
@@ -257,8 +358,8 @@ func TestPublishAndUnpublishTransitionsStatus(t *testing.T) {
 		t.Fatalf("published status = %v, want %q", publishedData["status"], articlemodule.StatusPublished)
 	}
 
-	unpublishReq := httptest.NewRequest(http.MethodPost, "/api/v1/articles/1/unpublish", nil)
-	unpublishReq.Header.Set("Authorization", "Bearer "+mustActorToken(t, 7, authmodule.RoleUser))
+	unpublishReq := httptest.NewRequest(http.MethodPost, "/api/v1/admin/articles/1/unpublish", nil)
+	unpublishReq.Header.Set("Authorization", "Bearer "+mustActorToken(t, 1, authmodule.RoleAdmin))
 	unpublishRec := httptest.NewRecorder()
 	handler.ServeHTTP(unpublishRec, unpublishReq)
 
@@ -279,9 +380,14 @@ func newArticleHandler(t *testing.T, actorID uint, actorRole string, items ...*a
 
 	apiMux := http.NewServeMux()
 	api := humago.New(apiMux, huma.DefaultConfig("Test API", "1.0.0"))
-	articlemodule.RegisterRoutes(api, service)
+	articlemodule.RegisterPublicRoutes(api, service)
+	articlemodule.RegisterAdminRoutes(api, service)
 
-	return middleware.Authenticate(newActorAuthService(t, actorID, actorRole))(apiMux)
+	root := http.NewServeMux()
+	root.Handle("/api/v1/admin/", middleware.RequireAdmin()(apiMux))
+	root.Handle("/", apiMux)
+
+	return middleware.Authenticate(newActorAuthService(t, actorID, actorRole))(root)
 }
 
 func newActorAuthService(t *testing.T, actorID uint, role string) *authmodule.Service {

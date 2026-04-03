@@ -3,6 +3,7 @@ package article
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -55,6 +56,22 @@ func (r *Repository) FindByID(ctx context.Context, id uint) (*Article, error) {
 
 	var item Article
 	err := r.db.WithContext(ctx).First(&item, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrArticleNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *Repository) FindBySlug(ctx context.Context, slug string) (*Article, error) {
+	if r == nil || r.db == nil {
+		return nil, ErrArticleNotFound
+	}
+
+	var item Article
+	err := r.db.WithContext(ctx).Where("slug = ?", strings.TrimSpace(slug)).First(&item).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrArticleNotFound
 	}

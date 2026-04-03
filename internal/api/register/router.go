@@ -50,7 +50,8 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 			categorymodule.RegisterRoutes(adminRoutes, categoryService)
 		}
 		if articleService := newArticleService(rt); articleService != nil {
-			articlemodule.RegisterRoutes(publicRoutes, articleService)
+			articlemodule.RegisterPublicRoutes(publicRoutes, articleService)
+			articlemodule.RegisterAdminRoutes(adminRoutes, articleService)
 		}
 		handler = middleware.Authenticate(authService)(apiMux)
 	}
