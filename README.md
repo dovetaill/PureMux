@@ -89,7 +89,17 @@ starter 默认只暴露这些入口：
 - `internal/api/register/router.go`
 - `internal/app/bootstrap/schema.go`
 
-如果你要把 starter 改造成自己的项目，先从复制 `post` 模块开始最省时间。更具体的替换步骤见 `internal/modules/example/README.md`。
+如果你要把 starter 改造成自己的项目，先运行 `bash scripts/new-module.sh article` 复制出自己的模块骨架，再按领域语义重命名实现。更具体的替换步骤见 `internal/modules/example/README.md`。
+
+## 如何替换 demo 模块
+
+推荐顺序：
+
+1. 运行 `bash scripts/new-module.sh <module_name>`
+2. 调整 `model.go` / `repository.go` / `service.go` / `handler.go`
+3. 在 `internal/api/register/router.go` 注册新模块
+4. 在 `internal/app/bootstrap/schema.go` 注册模型
+5. 扩展你的模块测试与路由测试
 
 ## 运行时基础能力
 
