@@ -5,68 +5,125 @@ import (
 	"testing"
 
 	"github.com/dovetaill/PureMux/pkg/config"
+	"github.com/dovetaill/PureMux/pkg/database"
+	"gorm.io/gorm"
 )
 
-func TestBuildMigrateConfigUsesSelectedDriver(t *testing.T) {
-	t.Run("mysql", func(t *testing.T) {
-		cfg := &config.Config{
-			Database: config.DatabaseConfig{Driver: "mysql"},
-			MySQL: config.MySQLConfig{
-				Host:      "127.0.0.1",
-				Port:      3306,
-				User:      "root",
-				Password:  "root",
-				DBName:    "puremux",
-				Charset:   "utf8mb4",
-				ParseTime: true,
-				Loc:       "Local",
-			},
-		}
-
-		got, err := BuildMigrateConfig(cfg)
-		if err != nil {
-			t.Fatalf("BuildMigrateConfig() error = %v", err)
-		}
-		if got.Driver != "mysql" {
-			t.Fatalf("Driver = %q, want %q", got.Driver, "mysql")
-		}
-		if got.SourceURL != "file://migrations" {
-			t.Fatalf("SourceURL = %q, want %q", got.SourceURL, "file://migrations")
-		}
-		wantURL := "mysql://root:root@tcp(127.0.0.1:3306)/puremux?charset=utf8mb4&loc=Local&parseTime=true"
-		if got.DatabaseURL != wantURL {
-			t.Fatalf("DatabaseURL = %q, want %q", got.DatabaseURL, wantURL)
-		}
-	})
-
-	t.Run("postgres", func(t *testing.T) {
-		cfg := &config.Config{
-			Database: config.DatabaseConfig{
-				Driver: "postgres",
-				Postgres: config.PostgresConfig{
-					Host:     "127.0.0.1",
-					Port:     5432,
-					User:     "postgres",
-					Password: "secret",
-					DBName:   "puremux",
-					SSLMode:  "disable",
-					TimeZone: "Asia/Shanghai",
+func TestBuildMigrateConfigUsesPrimaryDatabaseConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		cfg        *config.Config
+		wantDriver string
+		wantURL    string
+	}{
+		{
+			name: "mysql",
+			cfg: &config.Config{
+				Database: config.DatabaseConfig{
+					Driver: "mysql",
+					MySQL: config.DBMySQLConfig{
+						Host:      "127.0.0.1",
+						Port:      3306,
+						User:      "root",
+						Password:  "root",
+						DBName:    "puremux",
+						Charset:   "utf8mb4",
+						ParseTime: true,
+						Loc:       "Local",
+					},
 				},
 			},
-		}
+			wantDriver: "mysql",
+			wantURL:    "mysql://root:root@tcp(127.0.0.1:3306)/puremux?charset=utf8mb4&loc=Local&parseTime=true",
+		},
+		{
+			name: "postgres",
+			cfg: &config.Config{
+				Database: config.DatabaseConfig{
+					Driver: "postgres",
+					Postgres: config.PostgresConfig{
+						Host:     "127.0.0.1",
+						Port:     5432,
+						User:     "postgres",
+						Password: "secret",
+						DBName:   "puremux",
+						SSLMode:  "disable",
+						TimeZone: "Asia/Shanghai",
+					},
+				},
+			},
+			wantDriver: "postgres",
+			wantURL:    "postgres://postgres:secret@127.0.0.1:5432/puremux?TimeZone=Asia%2FShanghai&sslmode=disable",
+		},
+	}
 
-		got, err := BuildMigrateConfig(cfg)
-		if err != nil {
-			t.Fatalf("BuildMigrateConfig() error = %v", err)
-		}
-		if got.Driver != "postgres" {
-			t.Fatalf("Driver = %q, want %q", got.Driver, "postgres")
-		}
-		wantURL := "postgres://postgres:secret@127.0.0.1:5432/puremux?TimeZone=Asia%2FShanghai&sslmode=disable"
-		if got.DatabaseURL != wantURL {
-			t.Fatalf("DatabaseURL = %q, want %q", got.DatabaseURL, wantURL)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := BuildMigrateConfig(tt.cfg)
+			if err != nil {
+				t.Fatalf("BuildMigrateConfig() error = %v", err)
+			}
+			if got.Driver != tt.wantDriver {
+				t.Fatalf("Driver = %q, want %q", got.Driver, tt.wantDriver)
+			}
+			if got.SourceURL != "file://migrations" {
+				t.Fatalf("SourceURL = %q, want %q", got.SourceURL, "file://migrations")
+			}
+			if got.DatabaseURL != tt.wantURL {
+				t.Fatalf("DatabaseURL = %q, want %q", got.DatabaseURL, tt.wantURL)
+			}
+		})
+	}
+}
+
+func TestRunMigrateCommandRunsStarterSchemaSync(t *testing.T) {
+	origLoadConfig := loadConfigFn
+	origBootstrapDatabase := bootstrapDatabaseFn
+	origAutoMigrate := autoMigrateBusinessTablesFn
+	t.Cleanup(func() {
+		loadConfigFn = origLoadConfig
+		bootstrapDatabaseFn = origBootstrapDatabase
+		autoMigrateBusinessTablesFn = origAutoMigrate
 	})
+
+	bootstrapCalls := 0
+	autoMigrateCalls := 0
+	loadConfigFn = func(path string) (*config.Config, error) {
+		return &config.Config{
+			Database: config.DatabaseConfig{
+				Driver: "mysql",
+				MySQL: config.DBMySQLConfig{
+					Host:      "127.0.0.1",
+					Port:      3306,
+					User:      "root",
+					Password:  "root",
+					DBName:    "puremux",
+					Charset:   "utf8mb4",
+					ParseTime: true,
+					Loc:       "Local",
+				},
+			},
+			Redis: config.RedisConfig{Addr: "127.0.0.1:6379"},
+		}, nil
+	}
+	bootstrapDatabaseFn = func(cfg *config.Config) (*database.Resources, error) {
+		bootstrapCalls++
+		return &database.Resources{MySQL: &gorm.DB{}}, nil
+	}
+	autoMigrateBusinessTablesFn = func(migrator schemaMigrator) error {
+		autoMigrateCalls++
+		return nil
+	}
+
+	if err := RunMigrateCommand("configs/config.yaml"); err != nil {
+		t.Fatalf("RunMigrateCommand() error = %v", err)
+	}
+	if bootstrapCalls != 1 {
+		t.Fatalf("bootstrap database call count = %d, want %d", bootstrapCalls, 1)
+	}
+	if autoMigrateCalls != 1 {
+		t.Fatalf("auto migrate call count = %d, want %d", autoMigrateCalls, 1)
+	}
 }
 
 func TestMigrateCommandRejectsUnsupportedDriver(t *testing.T) {

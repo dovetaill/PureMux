@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/dovetaill/PureMux/internal/api/register"
@@ -19,20 +21,19 @@ type openAPIDocument struct {
 	Paths map[string]map[string]any `json:"paths"`
 }
 
-func TestRouterRegistersStarterRoutes(t *testing.T) {
+func TestRouterRegistersOnlyStarterRoutes(t *testing.T) {
 	handler := register.NewRouter(newRouterTestRuntime())
+	doc := fetchOpenAPIDocument(t, handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	wantPaths := []string{
+		"/api/v1/posts",
+		"/api/v1/posts/{id}",
+		"/healthz",
+		"/readyz",
 	}
-
-	var doc openAPIDocument
-	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
-		t.Fatalf("decode openapi: %v", err)
+	gotPaths := sortedPathKeys(doc.Paths)
+	if !reflect.DeepEqual(gotPaths, wantPaths) {
+		t.Fatalf("openapi paths = %v, want %v", gotPaths, wantPaths)
 	}
 
 	assertOperation(t, doc.Paths, "/healthz", http.MethodGet)
@@ -44,51 +45,43 @@ func TestRouterRegistersStarterRoutes(t *testing.T) {
 	assertOperation(t, doc.Paths, "/api/v1/posts/{id}", http.MethodDelete)
 
 	assertPathAbsent(t, doc.Paths, "/api/v1/auth/login")
-	assertPathAbsent(t, doc.Paths, "/api/v1/auth/me")
-	assertPathAbsent(t, doc.Paths, "/api/v1/member/auth/register")
 	assertPathAbsent(t, doc.Paths, "/api/v1/member/auth/login")
-	assertPathAbsent(t, doc.Paths, "/api/v1/me")
-	assertPathAbsent(t, doc.Paths, "/api/v1/me/favorites")
 	assertPathAbsent(t, doc.Paths, "/api/v1/admin/users")
-	assertPathAbsent(t, doc.Paths, "/api/v1/admin/categories")
-	assertPathAbsent(t, doc.Paths, "/api/v1/categories")
 	assertPathAbsent(t, doc.Paths, "/api/v1/articles")
-	assertPathAbsent(t, doc.Paths, "/api/v1/admin/articles")
 }
 
 func TestRouterServesStarterHealthAndDocsEndpoints(t *testing.T) {
 	handler := register.NewRouter(newRouterTestRuntime())
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("healthz status = %d, want %d", rec.Code, http.StatusOK)
+	tests := []struct {
+		name       string
+		path       string
+		wantStatus int
+		allow3xx   bool
+	}{
+		{name: "healthz", path: "/healthz", wantStatus: http.StatusOK},
+		{name: "readyz", path: "/readyz", wantStatus: http.StatusOK},
+		{name: "openapi", path: "/openapi.json", wantStatus: http.StatusOK},
+		{name: "docs", path: "/docs", wantStatus: http.StatusOK, allow3xx: true},
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("readyz status = %d, want %d", rec.Code, http.StatusOK)
-	}
+			if tt.allow3xx {
+				if rec.Code >= http.StatusBadRequest {
+					t.Fatalf("%s status = %d, want < %d", tt.path, rec.Code, http.StatusBadRequest)
+				}
+				return
+			}
 
-	req = httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
-	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("openapi status = %d, want %d", rec.Code, http.StatusOK)
-	}
-
-	req = httptest.NewRequest(http.MethodGet, "/docs", nil)
-	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code >= http.StatusBadRequest {
-		t.Fatalf("docs status = %d, want < %d", rec.Code, http.StatusBadRequest)
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("%s status = %d, want %d", tt.path, rec.Code, tt.wantStatus)
+			}
+		})
 	}
 }
 
@@ -109,6 +102,34 @@ func newRouterTestRuntime() *bootstrap.Runtime {
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Resources: &database.Resources{MySQL: &gorm.DB{}},
 	}
+}
+
+func fetchOpenAPIDocument(t *testing.T, handler http.Handler) openAPIDocument {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var doc openAPIDocument
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("decode openapi: %v", err)
+	}
+
+	return doc
+}
+
+func sortedPathKeys(paths map[string]map[string]any) []string {
+	keys := make([]string, 0, len(paths))
+	for path := range paths {
+		keys = append(keys, path)
+	}
+	slices.Sort(keys)
+	return keys
 }
 
 func assertOperation(t *testing.T, paths map[string]map[string]any, path string, method string) {
