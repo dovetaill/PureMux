@@ -1,27 +1,46 @@
 # PureMux
 
-PureMux `main` 现在定位为一个可直接改造的 Go API starter：保留 `server` / `worker` / `scheduler` / `migrate` 四个运行入口、共享基础设施、统一响应约定，以及一个最小 `post` CRUD 示例模块。
+PureMux `main` 是一个干净、可直接改造的 Go API starter：保留 `server` / `worker` / `scheduler` / `migrate` 四个入口、共享基础设施层，以及一个官方示例模块 `post`。
 
-如果你想查看之前完整的多 surface 业务示例，请切换到 `showcase/multisurface` 分支。该分支保留了更重的角色划分、业务模块组合和更完整的示例叙事。补充说明见 `docs/showcase/multisurface.md`。
+更完整的多业务、多 surface 示例已经移到 `showcase/multisurface` 分支；如果你只是要起一个新后端项目，请先看这里，再按自己的领域替换示例模块。
 
-## Starter 提供什么
+## Quickstart
 
-`main` 分支默认保留这些能力：
+### 1. 复制配置
 
-- 原生 `http.ServeMux`
-- Huma v2 OpenAPI 文档与 `/docs`
-- GORM 主数据库接入（`mysql` / `postgres`）
-- Redis bootstrap
-- `slog` 结构化日志
-- worker / scheduler / migrate 命令入口
-- 统一 JSON envelope
-- `/healthz` 与 `/readyz`
-- 可复用的 `internal/identity` / `internal/middleware`
-- 一个最小 `post module`，演示 handler / service / repository 分层
+```bash
+cp configs/config.example.yaml configs/config.yaml
+```
 
-## Starter API 面
+至少确认这些配置：
 
-启动 server 后，`main` 分支默认暴露这些入口：
+- `database.driver`
+- `database.mysql.*` 或 `database.postgres.*`
+- `redis.*`
+- `auth.jwt.*`
+
+### 2. 执行 schema sync
+
+```bash
+go run ./cmd/migrate -config configs/config.yaml
+```
+
+### 3. 启动 API
+
+```bash
+go run ./cmd/server -config configs/config.yaml
+```
+
+### 4. 可选：启动 worker / scheduler
+
+```bash
+go run ./cmd/worker -config configs/config.yaml
+go run ./cmd/scheduler -config configs/config.yaml
+```
+
+## 默认暴露什么
+
+启动后，starter 默认只暴露这些入口：
 
 - `GET /healthz`
 - `GET /readyz`
@@ -33,147 +52,43 @@ PureMux `main` 现在定位为一个可直接改造的 Go API starter：保留 `
 - `PATCH /api/v1/posts/{id}`
 - `DELETE /api/v1/posts/{id}`
 
-这套 API 足够展示 PureMux 的请求绑定、分页响应、服务层校验、仓储分层，以及路由注册方式，而不会把默认分支绑死在某个业务领域。
+## 官方 demo 模块
 
-## 快速启动
+`main` 分支只保留一个官方 demo 模块：`internal/modules/post`。
 
-### 1. 准备依赖
+它用最小成本展示了 PureMux 推荐的模块分层：
 
-你至少需要：
+- `model.go`
+- `repository.go`
+- `service.go`
+- `handler.go`
+- `post_test.go`
 
-- Go `1.25+`
-- Redis
-- MySQL 或 PostgreSQL
-
-### 2. 准备配置文件
-
-```bash
-cp configs/config.example.yaml configs/config.yaml
-```
-
-建议至少确认这些配置：
-
-- `database.driver`
-- `database.mysql.*` 或 `database.postgres.*`
-- `redis.*`
-- `auth.jwt.secret`
-- `auth.jwt.issuer`
-
-`main` 分支不再默认 seed 管理员账号；身份能力保留为可复用基础设施，由你按自己的业务模型接入。
-
-### 3. 启动 API 服务
-
-```bash
-go run ./cmd/server -config configs/config.yaml
-```
-
-启动后可访问：
-
-- `http://127.0.0.1:8080/healthz`
-- `http://127.0.0.1:8080/readyz`
-- `http://127.0.0.1:8080/openapi.json`
-- `http://127.0.0.1:8080/docs`
-
-### 4. 启动 worker 与 scheduler
-
-```bash
-go run ./cmd/worker -config configs/config.yaml
-go run ./cmd/scheduler -config configs/config.yaml
-```
-
-### 5. 使用 migrate 命令
-
-```bash
-go run ./cmd/migrate -config configs/config.yaml
-```
-
-## Demo 模块在哪里
-
-当前 starter 的参考模块位于：
-
-- `internal/modules/post/model.go`
-- `internal/modules/post/repository.go`
-- `internal/modules/post/service.go`
-- `internal/modules/post/handler.go`
-- `internal/modules/post/post_test.go`
-
-它配套的装配点在：
+相关 wiring 入口位于：
 
 - `internal/api/register/router.go`
 - `internal/app/bootstrap/schema.go`
 
-如果你想快速理解 PureMux 的推荐结构，先从 `post module` 开始最省时间。
+如果你要把 starter 改造成自己的项目，先从复制 `post` 模块开始最省时间。更具体的替换步骤见 `internal/modules/example/README.md`。
 
-## 如何替换掉 demo 模块
+## 运行时基础能力
 
-推荐按下面顺序把 starter 改造成你自己的领域：
+`main` 分支保留的是 starter 级共享能力，而不是业务示例集合：
 
-1. 复制 `internal/modules/post` 作为你的业务模块骨架
-2. 调整 `model.go` 定义自己的表结构与字段
-3. 在 `service.go` 写输入校验与业务规则
-4. 在 `repository.go` 接入你的数据访问逻辑
-5. 在 `handler.go` 暴露自己的路由与响应文案
-6. 在 `internal/api/register/router.go` 注册你的模块
-7. 在 `internal/app/bootstrap/schema.go` 注册你的模型
-8. 如需鉴权，复用 `internal/identity` 与 `internal/middleware`
+- Huma v2 + OpenAPI
+- GORM 主数据库接入（MySQL / PostgreSQL）
+- Redis bootstrap
+- `slog` 结构化日志
+- 统一 JSON envelope
+- `/healthz` 与 `/readyz`
+- 通用 middleware / identity / bootstrap 约定
 
-更详细的模块说明见 `internal/modules/example/README.md`。
+## 完整 showcase 在哪里
 
-## 运行时入口说明
-
-- `cmd/server`: HTTP API 服务
-- `cmd/worker`: 异步任务 worker 骨架
-- `cmd/scheduler`: 定时任务入口
-- `cmd/migrate`: 数据库迁移入口
-
-## 统一响应结构
-
-成功响应：
-
-```json
-{
-  "code": 0,
-  "message": "ok",
-  "data": {}
-}
-```
-
-分页响应：
-
-```json
-{
-  "code": 0,
-  "message": "post list",
-  "data": {
-    "page": 1,
-    "page_size": 20,
-    "total": 1,
-    "items": []
-  }
-}
-```
-
-错误响应：
-
-```json
-{
-  "code": 404,
-  "message": "post not found"
-}
-```
-
-## Showcase 分支
-
-如果你需要更完整的参考应用，而不是 starter，请查看 `showcase/multisurface`：
-
-- 保留拆分更细的业务模块图
-- 保留角色驱动的更复杂 API surface
-- 保留更重的 onboarding 文档和业务示例
-
-切换方式：
+如果你想参考更丰富的业务叙事、多角色 API surface 和更多模块组合，请切换到 `showcase/multisurface`：
 
 ```bash
 git switch showcase/multisurface
 ```
 
-补充背景见 `docs/showcase/multisurface.md`。
+简要说明见 `docs/showcase/multisurface.md`。

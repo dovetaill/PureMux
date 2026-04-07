@@ -91,7 +91,7 @@ func TestRequireAdminRejectsNonAdminActor(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/users", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts", nil)
 	req.Header.Set("Authorization", "Bearer test-token")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
