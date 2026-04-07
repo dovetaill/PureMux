@@ -17,7 +17,7 @@ func openPrimaryDatabase(cfg *config.Config) (*gorm.DB, error) {
 	driver := normalizedDriver(cfg.Database.Driver)
 	switch driver {
 	case driverMySQL:
-		return openMySQLFn(resolveMySQLConfig(cfg))
+		return openMySQLFn(cfg.Database.MySQL)
 	case driverPostgres:
 		return openPostgresFn(cfg.Database.Postgres)
 	default:
@@ -30,24 +30,4 @@ func normalizedDriver(driver string) string {
 		return driverMySQL
 	}
 	return strings.ToLower(strings.TrimSpace(driver))
-}
-
-func resolveMySQLConfig(cfg *config.Config) config.MySQLConfig {
-	if cfg.Database.MySQL.Host != "" || cfg.Database.MySQL.User != "" || cfg.Database.MySQL.DBName != "" {
-		return config.MySQLConfig{
-			Host:                   cfg.Database.MySQL.Host,
-			Port:                   cfg.Database.MySQL.Port,
-			User:                   cfg.Database.MySQL.User,
-			Password:               cfg.Database.MySQL.Password,
-			DBName:                 cfg.Database.MySQL.DBName,
-			Charset:                cfg.Database.MySQL.Charset,
-			ParseTime:              cfg.Database.MySQL.ParseTime,
-			Loc:                    cfg.Database.MySQL.Loc,
-			MaxOpenConns:           cfg.Database.MySQL.MaxOpenConns,
-			MaxIdleConns:           cfg.Database.MySQL.MaxIdleConns,
-			ConnMaxLifetimeMinutes: cfg.Database.MySQL.ConnMaxLifetimeMinutes,
-		}
-	}
-
-	return cfg.MySQL
 }

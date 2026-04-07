@@ -131,6 +131,17 @@ func clearLegacyDatabaseEnv(t *testing.T) {
 		"MYSQL_MAX_OPEN_CONNS",
 		"MYSQL_MAX_IDLE_CONNS",
 		"MYSQL_CONN_MAX_LIFETIME_MINUTES",
+		"DB_MYSQL_HOST",
+		"DB_MYSQL_PORT",
+		"DB_MYSQL_USER",
+		"DB_MYSQL_PASSWORD",
+		"DB_MYSQL_DBNAME",
+		"DB_MYSQL_CHARSET",
+		"DB_MYSQL_PARSE_TIME",
+		"DB_MYSQL_LOC",
+		"DB_MYSQL_MAX_OPEN_CONNS",
+		"DB_MYSQL_MAX_IDLE_CONNS",
+		"DB_MYSQL_CONN_MAX_LIFETIME_MINUTES",
 	} {
 		value, ok := os.LookupEnv(key)
 		if err := os.Unsetenv(key); err != nil {

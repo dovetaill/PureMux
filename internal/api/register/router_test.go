@@ -100,7 +100,7 @@ func newRouterTestRuntime() *bootstrap.Runtime {
 			},
 		},
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Resources: &database.Resources{MySQL: &gorm.DB{}},
+		Resources: &database.Resources{DB: &gorm.DB{}},
 	}
 }
 

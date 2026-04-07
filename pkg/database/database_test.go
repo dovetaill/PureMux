@@ -95,11 +95,13 @@ func TestBootstrapUsesMySQLDialectorWhenDriverIsMySQL(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Database: config.DatabaseConfig{Driver: "mysql"},
-		MySQL: config.MySQLConfig{
-			Host:   "127.0.0.1",
-			User:   "root",
-			DBName: "puremux",
+		Database: config.DatabaseConfig{
+			Driver: "mysql",
+			MySQL: config.MySQLConfig{
+				Host:   "127.0.0.1",
+				User:   "root",
+				DBName: "puremux",
+			},
 		},
 		Redis: config.RedisConfig{Addr: "127.0.0.1:6379"},
 	}

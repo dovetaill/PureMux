@@ -31,7 +31,7 @@ func BuildMigrateConfig(cfg *config.Config) (*MigrateConfig, error) {
 	case "mysql":
 		return &MigrateConfig{
 			Driver:      driver,
-			DatabaseURL: buildMySQLMigrateURL(resolveMigrateMySQLConfig(cfg)),
+			DatabaseURL: buildMySQLMigrateURL(cfg.Database.MySQL),
 			SourceURL:   migrationsSourceURL,
 		}, nil
 	case "postgres":
@@ -45,15 +45,30 @@ func BuildMigrateConfig(cfg *config.Config) (*MigrateConfig, error) {
 	}
 }
 
-// RunMigrateCommand 承载迁移命令的基础配置校验流程。
+// RunMigrateCommand 承载 starter schema sync 的执行流程。
 func RunMigrateCommand(configPath string) error {
 	cfg, err := loadConfigFn(configPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
-
 	if _, err := BuildMigrateConfig(cfg); err != nil {
 		return fmt.Errorf("build migrate config: %w", err)
+	}
+
+	resources, err := bootstrapDatabaseFn(cfg)
+	if err != nil {
+		return fmt.Errorf("bootstrap database resources: %w", err)
+	}
+	if resources != nil {
+		defer func() {
+			_ = resources.Close()
+		}()
+	}
+	if resources == nil || resources.DB == nil {
+		return errors.New("starter database is required")
+	}
+	if err := autoMigrateBusinessTablesFn(resources.DB); err != nil {
+		return fmt.Errorf("auto migrate starter schema: %w", err)
 	}
 
 	return nil
@@ -65,23 +80,6 @@ func normalizeDatabaseDriver(driver string) string {
 		return "mysql"
 	}
 	return strings.ToLower(driver)
-}
-
-func resolveMigrateMySQLConfig(cfg *config.Config) config.MySQLConfig {
-	if cfg.Database.MySQL.Host != "" || cfg.Database.MySQL.User != "" || cfg.Database.MySQL.DBName != "" {
-		return config.MySQLConfig{
-			Host:      cfg.Database.MySQL.Host,
-			Port:      cfg.Database.MySQL.Port,
-			User:      cfg.Database.MySQL.User,
-			Password:  cfg.Database.MySQL.Password,
-			DBName:    cfg.Database.MySQL.DBName,
-			Charset:   cfg.Database.MySQL.Charset,
-			ParseTime: cfg.Database.MySQL.ParseTime,
-			Loc:       cfg.Database.MySQL.Loc,
-		}
-	}
-
-	return cfg.MySQL
 }
 
 func buildMySQLMigrateURL(cfg config.MySQLConfig) string {

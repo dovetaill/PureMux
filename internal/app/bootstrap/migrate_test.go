@@ -21,7 +21,7 @@ func TestBuildMigrateConfigUsesPrimaryDatabaseConfig(t *testing.T) {
 			cfg: &config.Config{
 				Database: config.DatabaseConfig{
 					Driver: "mysql",
-					MySQL: config.DBMySQLConfig{
+					MySQL: config.MySQLConfig{
 						Host:      "127.0.0.1",
 						Port:      3306,
 						User:      "root",
@@ -92,7 +92,7 @@ func TestRunMigrateCommandRunsStarterSchemaSync(t *testing.T) {
 		return &config.Config{
 			Database: config.DatabaseConfig{
 				Driver: "mysql",
-				MySQL: config.DBMySQLConfig{
+				MySQL: config.MySQLConfig{
 					Host:      "127.0.0.1",
 					Port:      3306,
 					User:      "root",
@@ -108,7 +108,7 @@ func TestRunMigrateCommandRunsStarterSchemaSync(t *testing.T) {
 	}
 	bootstrapDatabaseFn = func(cfg *config.Config) (*database.Resources, error) {
 		bootstrapCalls++
-		return &database.Resources{MySQL: &gorm.DB{}}, nil
+		return &database.Resources{DB: &gorm.DB{}}, nil
 	}
 	autoMigrateBusinessTablesFn = func(migrator schemaMigrator) error {
 		autoMigrateCalls++

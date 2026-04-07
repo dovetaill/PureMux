@@ -26,7 +26,7 @@ func RegisterReady(api huma.API, rt *bootstrap.Runtime) {
 			"redis":    "down",
 		}
 		if rt != nil && rt.Resources != nil {
-			if rt.Resources.MySQL != nil {
+			if rt.Resources.DB != nil {
 				deps["database"] = "up"
 			}
 			if rt.Resources.Redis != nil {

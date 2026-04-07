@@ -16,8 +16,6 @@ var (
 	bootstrapDatabaseFn         = database.Bootstrap
 	businessModels              []any
 	autoMigrateBusinessTablesFn = AutoMigrateBusinessTables
-	newSeedAdminStoreFn         = func(resources *database.Resources) SeedAdminStore { return nil }
-	seedAdminPasswordHashFn     passwordHasher
 )
 
 // Runtime 承载 server/worker/scheduler 共享资源。

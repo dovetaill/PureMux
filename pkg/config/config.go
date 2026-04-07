@@ -1,10 +1,9 @@
 package config
 
-// Config 定义应用阶段一需要的强类型配置入口。
+// Config 定义 starter 的强类型配置入口。
 type Config struct {
 	App       AppConfig       `yaml:"app"`
 	HTTP      HTTPConfig      `yaml:"http"`
-	MySQL     MySQLConfig     `yaml:"mysql"`
 	Redis     RedisConfig     `yaml:"redis"`
 	Database  DatabaseConfig  `yaml:"database"`
 	Auth      AuthConfig      `yaml:"auth"`
@@ -22,26 +21,27 @@ type AppConfig struct {
 	Port int    `yaml:"port" env:"APP_PORT" env-default:"8080"`
 }
 
-// HTTPConfig 定义 HTTP 服务器超时配置。
+// HTTPConfig 定义 HTTP 服务器与应用超时配置。
 type HTTPConfig struct {
-	ReadTimeoutSeconds  int `yaml:"read_timeout_seconds" env:"HTTP_READ_TIMEOUT_SECONDS" env-default:"15"`
-	WriteTimeoutSeconds int `yaml:"write_timeout_seconds" env:"HTTP_WRITE_TIMEOUT_SECONDS" env-default:"15"`
-	IdleTimeoutSeconds  int `yaml:"idle_timeout_seconds" env:"HTTP_IDLE_TIMEOUT_SECONDS" env-default:"60"`
+	RequestTimeoutSeconds int `yaml:"request_timeout_seconds" env:"HTTP_REQUEST_TIMEOUT_SECONDS" env-default:"15"`
+	ReadTimeoutSeconds    int `yaml:"read_timeout_seconds" env:"HTTP_READ_TIMEOUT_SECONDS" env-default:"15"`
+	WriteTimeoutSeconds   int `yaml:"write_timeout_seconds" env:"HTTP_WRITE_TIMEOUT_SECONDS" env-default:"15"`
+	IdleTimeoutSeconds    int `yaml:"idle_timeout_seconds" env:"HTTP_IDLE_TIMEOUT_SECONDS" env-default:"60"`
 }
 
-// MySQLConfig 定义 MySQL 连接与连接池参数。
+// MySQLConfig 定义主数据库为 MySQL 时的连接与连接池参数。
 type MySQLConfig struct {
-	Host                   string `yaml:"host" env:"MYSQL_HOST" env-required:"true"`
-	Port                   int    `yaml:"port" env:"MYSQL_PORT" env-default:"3306"`
-	User                   string `yaml:"user" env:"MYSQL_USER" env-required:"true"`
-	Password               string `yaml:"password" env:"MYSQL_PASSWORD" env-required:"true"`
-	DBName                 string `yaml:"dbname" env:"MYSQL_DBNAME" env-required:"true"`
-	Charset                string `yaml:"charset" env:"MYSQL_CHARSET" env-default:"utf8mb4"`
-	ParseTime              bool   `yaml:"parse_time" env:"MYSQL_PARSE_TIME" env-default:"true"`
-	Loc                    string `yaml:"loc" env:"MYSQL_LOC" env-default:"Local"`
-	MaxOpenConns           int    `yaml:"max_open_conns" env:"MYSQL_MAX_OPEN_CONNS" env-default:"20"`
-	MaxIdleConns           int    `yaml:"max_idle_conns" env:"MYSQL_MAX_IDLE_CONNS" env-default:"10"`
-	ConnMaxLifetimeMinutes int    `yaml:"conn_max_lifetime_minutes" env:"MYSQL_CONN_MAX_LIFETIME_MINUTES" env-default:"60"`
+	Host                   string `yaml:"host" env:"DB_MYSQL_HOST"`
+	Port                   int    `yaml:"port" env:"DB_MYSQL_PORT" env-default:"3306"`
+	User                   string `yaml:"user" env:"DB_MYSQL_USER"`
+	Password               string `yaml:"password" env:"DB_MYSQL_PASSWORD"`
+	DBName                 string `yaml:"dbname" env:"DB_MYSQL_DBNAME"`
+	Charset                string `yaml:"charset" env:"DB_MYSQL_CHARSET" env-default:"utf8mb4"`
+	ParseTime              bool   `yaml:"parse_time" env:"DB_MYSQL_PARSE_TIME"`
+	Loc                    string `yaml:"loc" env:"DB_MYSQL_LOC" env-default:"Local"`
+	MaxOpenConns           int    `yaml:"max_open_conns" env:"DB_MYSQL_MAX_OPEN_CONNS" env-default:"20"`
+	MaxIdleConns           int    `yaml:"max_idle_conns" env:"DB_MYSQL_MAX_IDLE_CONNS" env-default:"10"`
+	ConnMaxLifetimeMinutes int    `yaml:"conn_max_lifetime_minutes" env:"DB_MYSQL_CONN_MAX_LIFETIME_MINUTES" env-default:"60"`
 }
 
 // RedisConfig 定义 Redis 连接与连接池参数。
@@ -56,43 +56,27 @@ type RedisConfig struct {
 // DatabaseConfig 定义主数据库驱动与连接配置。
 type DatabaseConfig struct {
 	Driver   string         `yaml:"driver" env:"DB_DRIVER" env-default:"mysql"`
-	MySQL    DBMySQLConfig  `yaml:"mysql"`
+	MySQL    MySQLConfig    `yaml:"mysql"`
 	Postgres PostgresConfig `yaml:"postgres"`
-}
-
-// DBMySQLConfig 定义 database.mysql 子配置。
-type DBMySQLConfig struct {
-	Host                   string `yaml:"host" env:"DB_MYSQL_HOST"`
-	Port                   int    `yaml:"port" env:"DB_MYSQL_PORT" env-default:"3306"`
-	User                   string `yaml:"user" env:"DB_MYSQL_USER"`
-	Password               string `yaml:"password" env:"DB_MYSQL_PASSWORD"`
-	DBName                 string `yaml:"dbname" env:"DB_MYSQL_DBNAME"`
-	Charset                string `yaml:"charset" env:"DB_MYSQL_CHARSET" env-default:"utf8mb4"`
-	ParseTime              bool   `yaml:"parse_time" env:"DB_MYSQL_PARSE_TIME" env-default:"true"`
-	Loc                    string `yaml:"loc" env:"DB_MYSQL_LOC" env-default:"Local"`
-	MaxOpenConns           int    `yaml:"max_open_conns" env:"DB_MYSQL_MAX_OPEN_CONNS" env-default:"20"`
-	MaxIdleConns           int    `yaml:"max_idle_conns" env:"DB_MYSQL_MAX_IDLE_CONNS" env-default:"10"`
-	ConnMaxLifetimeMinutes int    `yaml:"conn_max_lifetime_minutes" env:"DB_MYSQL_CONN_MAX_LIFETIME_MINUTES" env-default:"60"`
 }
 
 // PostgresConfig 定义 PostgreSQL 连接参数。
 type PostgresConfig struct {
-	Host                   string `yaml:"host" env:"POSTGRES_HOST"`
-	Port                   int    `yaml:"port" env:"POSTGRES_PORT" env-default:"5432"`
-	User                   string `yaml:"user" env:"POSTGRES_USER"`
-	Password               string `yaml:"password" env:"POSTGRES_PASSWORD"`
-	DBName                 string `yaml:"dbname" env:"POSTGRES_DBNAME"`
-	SSLMode                string `yaml:"ssl_mode" env:"POSTGRES_SSL_MODE" env-default:"disable"`
-	TimeZone               string `yaml:"time_zone" env:"POSTGRES_TIME_ZONE" env-default:"Asia/Shanghai"`
-	MaxOpenConns           int    `yaml:"max_open_conns" env:"POSTGRES_MAX_OPEN_CONNS" env-default:"20"`
-	MaxIdleConns           int    `yaml:"max_idle_conns" env:"POSTGRES_MAX_IDLE_CONNS" env-default:"10"`
-	ConnMaxLifetimeMinutes int    `yaml:"conn_max_lifetime_minutes" env:"POSTGRES_CONN_MAX_LIFETIME_MINUTES" env-default:"60"`
+	Host                   string `yaml:"host" env:"DB_POSTGRES_HOST"`
+	Port                   int    `yaml:"port" env:"DB_POSTGRES_PORT" env-default:"5432"`
+	User                   string `yaml:"user" env:"DB_POSTGRES_USER"`
+	Password               string `yaml:"password" env:"DB_POSTGRES_PASSWORD"`
+	DBName                 string `yaml:"dbname" env:"DB_POSTGRES_DBNAME"`
+	SSLMode                string `yaml:"ssl_mode" env:"DB_POSTGRES_SSL_MODE" env-default:"disable"`
+	TimeZone               string `yaml:"time_zone" env:"DB_POSTGRES_TIME_ZONE" env-default:"Asia/Shanghai"`
+	MaxOpenConns           int    `yaml:"max_open_conns" env:"DB_POSTGRES_MAX_OPEN_CONNS" env-default:"20"`
+	MaxIdleConns           int    `yaml:"max_idle_conns" env:"DB_POSTGRES_MAX_IDLE_CONNS" env-default:"10"`
+	ConnMaxLifetimeMinutes int    `yaml:"conn_max_lifetime_minutes" env:"DB_POSTGRES_CONN_MAX_LIFETIME_MINUTES" env-default:"60"`
 }
 
-// AuthConfig 定义认证与默认管理员初始化配置。
+// AuthConfig 定义 starter 认证配置。
 type AuthConfig struct {
-	JWT       JWTConfig       `yaml:"jwt"`
-	SeedAdmin SeedAdminConfig `yaml:"seed_admin"`
+	JWT JWTConfig `yaml:"jwt"`
 }
 
 // JWTConfig 定义 JWT 生成与校验参数。
@@ -100,13 +84,6 @@ type JWTConfig struct {
 	Secret     string `yaml:"secret" env:"AUTH_JWT_SECRET" env-default:"change-me-in-production"`
 	Issuer     string `yaml:"issuer" env:"AUTH_JWT_ISSUER" env-default:"PureMux"`
 	TTLMinutes int    `yaml:"ttl_minutes" env:"AUTH_JWT_TTL_MINUTES" env-default:"120"`
-}
-
-// SeedAdminConfig 定义默认管理员初始化参数。
-type SeedAdminConfig struct {
-	Enabled  bool   `yaml:"enabled" env:"AUTH_SEED_ADMIN_ENABLED" env-default:"true"`
-	Username string `yaml:"username" env:"AUTH_SEED_ADMIN_USERNAME" env-default:"admin"`
-	Password string `yaml:"password" env:"AUTH_SEED_ADMIN_PASSWORD" env-default:"admin123456"`
 }
 
 // QueueConfig 定义后台队列运行参数。
@@ -128,7 +105,7 @@ type SchedulerConfig struct {
 
 // DocsConfig 定义 OpenAPI 文档开关与路径。
 type DocsConfig struct {
-	Enabled     bool   `yaml:"enabled" env:"DOCS_ENABLED" env-default:"true"`
+	Enabled     bool   `yaml:"enabled" env:"DOCS_ENABLED"`
 	OpenAPIPath string `yaml:"openapi_path" env:"DOCS_OPENAPI_PATH" env-default:"/openapi.json"`
 	UIPath      string `yaml:"ui_path" env:"DOCS_UI_PATH" env-default:"/docs"`
 }
@@ -144,5 +121,5 @@ type LogConfig struct {
 	MaxBackups  int    `yaml:"max_backups" env:"LOG_MAX_BACKUPS" env-default:"14"`
 	MaxAgeDays  int    `yaml:"max_age_days" env:"LOG_MAX_AGE_DAYS" env-default:"30"`
 	Compress    bool   `yaml:"compress" env:"LOG_COMPRESS" env-default:"false"`
-	RotateDaily bool   `yaml:"rotate_daily" env:"LOG_ROTATE_DAILY" env-default:"true"`
+	RotateDaily bool   `yaml:"rotate_daily" env:"LOG_ROTATE_DAILY"`
 }

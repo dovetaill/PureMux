@@ -62,10 +62,10 @@ func normalizeOpenAPIPath(path string) string {
 }
 
 func newPostService(rt *bootstrap.Runtime) *postmodule.Service {
-	if rt == nil || rt.Resources == nil || rt.Resources.MySQL == nil {
+	if rt == nil || rt.Resources == nil || rt.Resources.DB == nil {
 		return nil
 	}
-	repo := postmodule.NewRepository(rt.Resources.MySQL)
+	repo := postmodule.NewRepository(rt.Resources.DB)
 	return postmodule.NewService(repo)
 }
 

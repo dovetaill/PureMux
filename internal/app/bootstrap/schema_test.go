@@ -52,21 +52,15 @@ func TestBuildServerRuntimeDoesNotAutoMigrateStarterSchema(t *testing.T) {
 	origNewLogger := newLoggerFn
 	origBootstrapDatabase := bootstrapDatabaseFn
 	origAutoMigrate := autoMigrateBusinessTablesFn
-	origNewSeedStore := newSeedAdminStoreFn
-	origHashPassword := seedAdminPasswordHashFn
 	t.Cleanup(func() {
 		loadConfigFn = origLoadConfig
 		newLoggerFn = origNewLogger
 		bootstrapDatabaseFn = origBootstrapDatabase
 		autoMigrateBusinessTablesFn = origAutoMigrate
-		newSeedAdminStoreFn = origNewSeedStore
-		seedAdminPasswordHashFn = origHashPassword
 	})
 
-	resources := &database.Resources{MySQL: &gorm.DB{}}
+	resources := &database.Resources{DB: &gorm.DB{}}
 	autoMigrateCalls := 0
-	newSeedStoreCalls := 0
-	hashCalls := 0
 
 	loadConfigFn = func(path string) (*config.Config, error) {
 		return &config.Config{App: config.AppConfig{Name: "PureMux"}}, nil
@@ -81,14 +75,6 @@ func TestBuildServerRuntimeDoesNotAutoMigrateStarterSchema(t *testing.T) {
 		autoMigrateCalls++
 		return nil
 	}
-	newSeedAdminStoreFn = func(resources *database.Resources) SeedAdminStore {
-		newSeedStoreCalls++
-		return nil
-	}
-	seedAdminPasswordHashFn = func(password string) (string, error) {
-		hashCalls++
-		return "hashed:" + password, nil
-	}
 
 	_, err := BuildServerRuntime("configs/config.yaml")
 	if err != nil {
@@ -96,11 +82,5 @@ func TestBuildServerRuntimeDoesNotAutoMigrateStarterSchema(t *testing.T) {
 	}
 	if autoMigrateCalls != 0 {
 		t.Fatalf("auto migrate call count = %d, want %d", autoMigrateCalls, 0)
-	}
-	if newSeedStoreCalls != 0 {
-		t.Fatalf("new seed admin store call count = %d, want %d", newSeedStoreCalls, 0)
-	}
-	if hashCalls != 0 {
-		t.Fatalf("seed admin password hasher call count = %d, want %d", hashCalls, 0)
 	}
 }

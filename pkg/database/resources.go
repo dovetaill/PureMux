@@ -15,13 +15,13 @@ var (
 	openRedisFn    = openRedis
 )
 
-// Resources 聚合阶段一初始化出来的基础设施客户端。
+// Resources 聚合 starter 初始化出来的基础设施客户端。
 type Resources struct {
-	MySQL *gorm.DB
+	DB    *gorm.DB
 	Redis *redis.Client
 }
 
-// Bootstrap 按固定顺序初始化 MySQL 与 Redis，并在失败时回收已创建资源。
+// Bootstrap 按固定顺序初始化主数据库与 Redis，并在失败时回收已创建资源。
 func Bootstrap(cfg *config.Config) (*Resources, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
@@ -29,11 +29,11 @@ func Bootstrap(cfg *config.Config) (*Resources, error) {
 
 	resources := &Resources{}
 
-	mysqlDB, err := openPrimaryDatabase(cfg)
+	db, err := openPrimaryDatabase(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("bootstrap database: %w", err)
 	}
-	resources.MySQL = mysqlDB
+	resources.DB = db
 
 	redisClient, err := openRedisFn(cfg.Redis)
 	if err != nil {
@@ -55,8 +55,11 @@ func (r *Resources) Close() error {
 		err = errors.Join(err, r.Redis.Close())
 	}
 
-	if r.MySQL != nil {
-		sqlDB, dbErr := r.MySQL.DB()
+	if r.DB != nil {
+		if r.DB.Config == nil {
+			return err
+		}
+		sqlDB, dbErr := r.DB.DB()
 		if dbErr != nil {
 			err = errors.Join(err, dbErr)
 		} else {
