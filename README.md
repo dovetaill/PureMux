@@ -12,12 +12,12 @@ PureMux `main` 是一个干净、可直接改造的 Go API starter：保留 `ser
 make up
 ```
 
-这会启动 starter 自带的本地依赖：
+这会启动 starter 自带的本地依赖，并等待它们进入可用状态：
 
 - MySQL
 - Redis
 
-对应配置已经放在 `configs/config.local.yaml`，默认指向 `docker-compose.yml` 里的服务。
+对应配置已经放在 `configs/config.local.yaml`，默认指向 `docker-compose.yml` 里的服务（主机端口为 MySQL `3307`、Redis `6380`，以减少与本机常驻服务冲突）。
 
 ### 2. 同步 starter schema
 

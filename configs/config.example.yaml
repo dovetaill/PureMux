@@ -5,6 +5,7 @@ app:
   port: 8080
 
 http:
+  # Application-level timeout used by the request middleware.
   request_timeout_seconds: 15
   read_timeout_seconds: 15
   write_timeout_seconds: 15
@@ -60,6 +61,7 @@ scheduler:
   spec: "@every 1m"
 
 docs:
+  # Set to false to disable both /openapi.json and /docs.
   enabled: true
   openapi_path: /openapi.json
   ui_path: /docs

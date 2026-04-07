@@ -1,13 +1,17 @@
+export GOCACHE ?= /tmp/puremux-go-cache
+CONFIG ?= configs/config.local.yaml
+COMPOSE ?= docker compose
+
 .PHONY: up down dev test verify smoke migrate
 
 up:
-	docker compose up -d mysql redis
+	$(COMPOSE) up -d --wait mysql redis
 
 down:
-	docker compose down
+	$(COMPOSE) down
 
 dev:
-	go run ./cmd/server -config configs/config.local.yaml
+	go run ./cmd/server -config $(CONFIG)
 
 test:
 	go test ./...
@@ -19,4 +23,4 @@ smoke:
 	bash scripts/smoke.sh
 
 migrate:
-	go run ./cmd/migrate -config configs/config.local.yaml
+	go run ./cmd/migrate -config $(CONFIG)

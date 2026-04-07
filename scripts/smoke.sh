@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+export GOCACHE="${GOCACHE:-/tmp/puremux-go-cache}"
+mkdir -p "$GOCACHE"
+
 CONFIG_PATH="configs/config.local.yaml"
 BASE_URL="http://127.0.0.1:8080"
 SERVER_LOG="/tmp/puremux-smoke-server.log"
