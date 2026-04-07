@@ -15,6 +15,7 @@ func main() {
 	if err := bootstrap.RunMigrateCommand(*configPath); err != nil {
 		log.Fatalf("run migrate command: %v", err)
 	}
+	log.Print("starter schema sync complete")
 }
 
 func envOrDefault(key, fallback string) string {

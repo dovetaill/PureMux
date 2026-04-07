@@ -31,10 +31,16 @@ func main() {
 
 	handler := register.NewRouter(rt)
 	addr := rt.Config.App.Host + ":" + strconv.Itoa(rt.Config.App.Port)
+	readTimeout := durationFromSeconds(rt.Config.HTTP.ReadTimeoutSeconds, 15)
+	writeTimeout := durationFromSeconds(rt.Config.HTTP.WriteTimeoutSeconds, 15)
+	idleTimeout := durationFromSeconds(rt.Config.HTTP.IdleTimeoutSeconds, 60)
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
-		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+		ReadHeaderTimeout: readTimeout,
 	}
 
 	errCh := make(chan error, 1)
@@ -66,4 +72,11 @@ func envOrDefault(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func durationFromSeconds(seconds int, fallback int) time.Duration {
+	if seconds <= 0 {
+		seconds = fallback
+	}
+	return time.Duration(seconds) * time.Second
 }

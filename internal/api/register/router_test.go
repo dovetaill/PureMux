@@ -22,7 +22,7 @@ type openAPIDocument struct {
 }
 
 func TestRouterRegistersOnlyStarterRoutes(t *testing.T) {
-	handler := register.NewRouter(newRouterTestRuntime())
+	handler := register.NewRouter(newRouterTestRuntime(true))
 	doc := fetchOpenAPIDocument(t, handler)
 
 	wantPaths := []string{
@@ -51,7 +51,7 @@ func TestRouterRegistersOnlyStarterRoutes(t *testing.T) {
 }
 
 func TestRouterServesStarterHealthAndDocsEndpoints(t *testing.T) {
-	handler := register.NewRouter(newRouterTestRuntime())
+	handler := register.NewRouter(newRouterTestRuntime(true))
 
 	tests := []struct {
 		name       string
@@ -85,12 +85,28 @@ func TestRouterServesStarterHealthAndDocsEndpoints(t *testing.T) {
 	}
 }
 
-func newRouterTestRuntime() *bootstrap.Runtime {
+func TestRouterDisablesDocsEndpointsWhenDocsDisabled(t *testing.T) {
+	handler := register.NewRouter(newRouterTestRuntime(false))
+
+	for _, path := range []string{"/openapi.json", "/docs"} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusNotFound {
+				t.Fatalf("%s status = %d, want %d", path, rec.Code, http.StatusNotFound)
+			}
+		})
+	}
+}
+
+func newRouterTestRuntime(docsEnabled bool) *bootstrap.Runtime {
 	return &bootstrap.Runtime{
 		Config: &config.Config{
 			App:  config.AppConfig{Name: "PureMux"},
-			Docs: config.DocsConfig{Enabled: true, OpenAPIPath: "/openapi.json", UIPath: "/docs"},
-			HTTP: config.HTTPConfig{ReadTimeoutSeconds: 15},
+			Docs: config.DocsConfig{Enabled: docsEnabled, OpenAPIPath: "/openapi.json", UIPath: "/docs"},
+			HTTP: config.HTTPConfig{RequestTimeoutSeconds: 15, ReadTimeoutSeconds: 15},
 			Auth: config.AuthConfig{
 				JWT: config.JWTConfig{
 					Secret:     "test-secret",

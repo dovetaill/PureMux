@@ -116,6 +116,49 @@ log:
 	}
 }
 
+func TestLoadReadsExplicitDocsAndRequestTimeoutConfig(t *testing.T) {
+	clearLegacyDatabaseEnv(t)
+
+	path := writeConfigFile(t, `
+app:
+  name: PureMux
+http:
+  request_timeout_seconds: 27
+database:
+  driver: mysql
+  mysql:
+    host: 127.0.0.1
+    user: root
+    password: root
+    dbname: puremux
+redis:
+  addr: 127.0.0.1:6379
+docs:
+  enabled: false
+  openapi_path: /schema.json
+  ui_path: /reference
+log:
+  level: info
+`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.HTTP.RequestTimeoutSeconds != 27 {
+		t.Fatalf("HTTP.RequestTimeoutSeconds = %d, want %d", cfg.HTTP.RequestTimeoutSeconds, 27)
+	}
+	if cfg.Docs.Enabled {
+		t.Fatal("Docs.Enabled = true, want false")
+	}
+	if cfg.Docs.OpenAPIPath != "/schema.json" {
+		t.Fatalf("Docs.OpenAPIPath = %q, want %q", cfg.Docs.OpenAPIPath, "/schema.json")
+	}
+	if cfg.Docs.UIPath != "/reference" {
+		t.Fatalf("Docs.UIPath = %q, want %q", cfg.Docs.UIPath, "/reference")
+	}
+}
+
 func clearLegacyDatabaseEnv(t *testing.T) {
 	t.Helper()
 
@@ -142,6 +185,10 @@ func clearLegacyDatabaseEnv(t *testing.T) {
 		"DB_MYSQL_MAX_OPEN_CONNS",
 		"DB_MYSQL_MAX_IDLE_CONNS",
 		"DB_MYSQL_CONN_MAX_LIFETIME_MINUTES",
+		"HTTP_REQUEST_TIMEOUT_SECONDS",
+		"DOCS_ENABLED",
+		"DOCS_OPENAPI_PATH",
+		"DOCS_UI_PATH",
 	} {
 		value, ok := os.LookupEnv(key)
 		if err := os.Unsetenv(key); err != nil {

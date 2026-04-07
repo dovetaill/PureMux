@@ -22,9 +22,14 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 		if rt.Config.App.Name != "" {
 			cfg.Info.Title = rt.Config.App.Name
 		}
-		cfg.OpenAPIPath = normalizeOpenAPIPath(rt.Config.Docs.OpenAPIPath)
-		if rt.Config.Docs.UIPath != "" {
-			cfg.DocsPath = rt.Config.Docs.UIPath
+		if rt.Config.Docs.Enabled {
+			cfg.OpenAPIPath = normalizeOpenAPIPath(rt.Config.Docs.OpenAPIPath)
+			if rt.Config.Docs.UIPath != "" {
+				cfg.DocsPath = rt.Config.Docs.UIPath
+			}
+		} else {
+			cfg.OpenAPIPath = ""
+			cfg.DocsPath = ""
 		}
 	}
 
@@ -37,8 +42,8 @@ func NewRouter(rt *bootstrap.Runtime) http.Handler {
 	}
 
 	timeout := 15 * time.Second
-	if rt != nil && rt.Config != nil && rt.Config.HTTP.ReadTimeoutSeconds > 0 {
-		timeout = time.Duration(rt.Config.HTTP.ReadTimeoutSeconds) * time.Second
+	if rt != nil && rt.Config != nil && rt.Config.HTTP.RequestTimeoutSeconds > 0 {
+		timeout = time.Duration(rt.Config.HTTP.RequestTimeoutSeconds) * time.Second
 	}
 
 	return middleware.Chain(
