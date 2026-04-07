@@ -2,45 +2,65 @@
 
 PureMux `main` 是一个干净、可直接改造的 Go API starter：保留 `server` / `worker` / `scheduler` / `migrate` 四个入口、共享基础设施层，以及一个官方示例模块 `post`。
 
-更完整的多业务、多 surface 示例已经移到 `showcase/multisurface` 分支；如果你只是要起一个新后端项目，请先看这里，再按自己的领域替换示例模块。
+如果你只想尽快起一个后端项目，请先按下面的本地开发流程跑起来；更完整的多业务、多 surface 示例已经移到 `showcase/multisurface` 分支。
 
-## Quickstart
+## 本地启动
 
-### 1. 复制配置
+### 1. 启动依赖
 
 ```bash
-cp configs/config.example.yaml configs/config.yaml
+make up
 ```
 
-至少确认这些配置：
+这会启动 starter 自带的本地依赖：
 
-- `database.driver`
-- `database.mysql.*` 或 `database.postgres.*`
-- `redis.*`
-- `auth.jwt.*`
+- MySQL
+- Redis
 
-### 2. 执行 schema sync
+对应配置已经放在 `configs/config.local.yaml`，默认指向 `docker-compose.yml` 里的服务。
+
+### 2. 同步 starter schema
 
 ```bash
-go run ./cmd/migrate -config configs/config.yaml
+make migrate
 ```
 
 ### 3. 启动 API
 
 ```bash
-go run ./cmd/server -config configs/config.yaml
+make dev
 ```
 
-### 4. 可选：启动 worker / scheduler
+启动后默认访问：
+
+- `http://127.0.0.1:8080/healthz`
+- `http://127.0.0.1:8080/readyz`
+- `http://127.0.0.1:8080/openapi.json`
+- `http://127.0.0.1:8080/docs`
+
+### 4. 关闭依赖
 
 ```bash
-go run ./cmd/worker -config configs/config.yaml
-go run ./cmd/scheduler -config configs/config.yaml
+make down
 ```
+
+## 一键验证
+
+开发过程中常用这些命令：
+
+```bash
+make test
+make verify
+make smoke
+```
+
+- `make test`: 运行 `go test ./...`
+- `make verify`: 执行 starter 的标准校验脚本
+- `make smoke`: 启动本地依赖、执行 migrate、拉起 server，并检查核心端点
 
 ## 默认暴露什么
 
-启动后，starter 默认只暴露这些入口：
+starter 默认只暴露这些入口：
 
 - `GET /healthz`
 - `GET /readyz`

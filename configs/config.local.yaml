@@ -1,0 +1,65 @@
+app:
+  name: PureMux
+  env: local
+  host: 127.0.0.1
+  port: 8080
+
+http:
+  request_timeout_seconds: 15
+  read_timeout_seconds: 15
+  write_timeout_seconds: 15
+  idle_timeout_seconds: 60
+
+redis:
+  addr: 127.0.0.1:6379
+  password: ""
+  db: 0
+  pool_size: 10
+  min_idle_conns: 2
+
+database:
+  driver: mysql
+  mysql:
+    host: 127.0.0.1
+    port: 3306
+    user: root
+    password: root
+    dbname: puremux
+    charset: utf8mb4
+    parse_time: true
+    loc: Local
+    max_open_conns: 20
+    max_idle_conns: 10
+    conn_max_lifetime_minutes: 60
+
+auth:
+  jwt:
+    secret: local-dev-secret
+    issuer: PureMux
+    ttl_minutes: 120
+
+queue:
+  asynq:
+    concurrency: 10
+    queue_name: default
+
+scheduler:
+  enabled: false
+  spec: "@every 1m"
+
+docs:
+  enabled: true
+  openapi_path: /openapi.json
+  ui_path: /docs
+
+log:
+  level: info
+  format: json
+  output: console
+  dir: logs
+  filename: app.log
+  max_size_mb: 100
+  max_backups: 14
+  max_age_days: 30
+  compress: false
+  rotate_daily: true
