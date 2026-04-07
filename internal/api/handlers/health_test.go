@@ -8,6 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
+
 	"github.com/dovetaill/PureMux/internal/api/register"
 	"github.com/dovetaill/PureMux/internal/api/response"
 	"github.com/dovetaill/PureMux/internal/app/bootstrap"
@@ -76,12 +79,50 @@ func TestReadyzReturnsDependencyStatus(t *testing.T) {
 	if !ok {
 		t.Fatalf("dependencies type = %T, want map[string]any", data["dependencies"])
 	}
-	if deps["database"] != "down" {
-		t.Fatalf("dependencies.database = %v, want %q", deps["database"], "down")
+
+	assertDependencyStatus(t, deps, "database", false, false)
+	assertDependencyStatus(t, deps, "redis", false, false)
+}
+
+func TestReadyzReportsConfiguredAndHealthyDependencies(t *testing.T) {
+	rt := &bootstrap.Runtime{
+		Config: &config.Config{
+			App:  config.AppConfig{Name: "PureMux"},
+			Docs: config.DocsConfig{Enabled: true, OpenAPIPath: "/openapi.json", UIPath: "/docs"},
+			HTTP: config.HTTPConfig{ReadTimeoutSeconds: 15},
+		},
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Resources: &database.Resources{
+			DB:    &gorm.DB{},
+			Redis: &redis.Client{},
+		},
 	}
-	if deps["redis"] != "down" {
-		t.Fatalf("dependencies.redis = %v, want %q", deps["redis"], "down")
+
+	handler := register.NewRouter(rt)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
+
+	var got response.Envelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	data, ok := got.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("data type = %T, want map[string]any", got.Data)
+	}
+	deps, ok := data["dependencies"].(map[string]any)
+	if !ok {
+		t.Fatalf("dependencies type = %T, want map[string]any", data["dependencies"])
+	}
+
+	assertDependencyStatus(t, deps, "database", true, true)
+	assertDependencyStatus(t, deps, "redis", true, true)
 }
 
 func TestResponseHelpersReturnStandardShape(t *testing.T) {
@@ -102,5 +143,20 @@ func TestResponseHelpersReturnStandardShape(t *testing.T) {
 	}
 	if fail.Message != "bad request" {
 		t.Fatalf("Fail message = %q, want %q", fail.Message, "bad request")
+	}
+}
+
+func assertDependencyStatus(t *testing.T, deps map[string]any, name string, configured bool, healthy bool) {
+	t.Helper()
+
+	dependency, ok := deps[name].(map[string]any)
+	if !ok {
+		t.Fatalf("dependencies.%s type = %T, want map[string]any", name, deps[name])
+	}
+	if got := dependency["configured"]; got != configured {
+		t.Fatalf("dependencies.%s.configured = %v, want %v", name, got, configured)
+	}
+	if got := dependency["healthy"]; got != healthy {
+		t.Fatalf("dependencies.%s.healthy = %v, want %v", name, got, healthy)
 	}
 }

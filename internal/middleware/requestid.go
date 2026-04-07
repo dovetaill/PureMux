@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"sync/atomic"
@@ -10,6 +11,8 @@ import (
 const requestIDHeader = "X-Request-ID"
 
 var requestIDCounter uint64
+
+type requestIDContextKey struct{}
 
 // Middleware 表示 HTTP 中间件。
 type Middleware func(http.Handler) http.Handler
@@ -34,8 +37,22 @@ func RequestID() Middleware {
 			if requestID == "" {
 				requestID = strconv.FormatInt(time.Now().UnixNano(), 10) + "-" + strconv.FormatUint(atomic.AddUint64(&requestIDCounter, 1), 10)
 			}
+
+			ctx := context.WithValue(r.Context(), requestIDContextKey{}, requestID)
 			w.Header().Set(requestIDHeader, requestID)
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// RequestIDFromContext 返回上下文中的 request id。
+func RequestIDFromContext(ctx context.Context) (string, bool) {
+	if ctx == nil {
+		return "", false
+	}
+	requestID, ok := ctx.Value(requestIDContextKey{}).(string)
+	if !ok || requestID == "" {
+		return "", false
+	}
+	return requestID, true
 }
